@@ -1,0 +1,36 @@
+{
+  "name": "cortex-dc-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cortex Domain Consultant Web Platform - Firebase monorepo for DC engagement acceleration",
+  "scripts": {
+    "dev": "concurrently \"pnpm run emulators\" \"pnpm run dev:web\"",
+    "dev:web": "cd apps/web && pnpm dev",
+    "dev:functions": "cd functions && pnpm serve",
+    "build": "pnpm run build:web",
+    "build:web": "cd apps/web && pnpm build",
+    "emulators": "firebase emulators:start --import=./emulator-data --export-on-exit",
+    "emulators:start": "firebase emulators:start",
+    "emulators:kill": "firebase emulators:kill",
+    "deploy": "pnpm run build && firebase deploy",
+    "deploy:hosting": "pnpm run build && firebase deploy --only hosting",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:rules": "firebase deploy --only firestore:rules,storage:rules",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "test": "turbo run test",
+    "clean": "turbo run clean",
+    "setup": "pnpm install && firebase login && firebase use cortex-dc-portal"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "firebase-tools": "^13.15.0",
+    "turbo": "^2.0.12",
+    "@types/node": "^20.11.16"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.1"
+}
