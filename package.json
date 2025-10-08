@@ -20,17 +20,33 @@
     "type-check": "turbo run type-check",
     "test": "turbo run test",
     "clean": "turbo run clean",
-    "setup": "pnpm install && firebase login && firebase use cortex-dc-portal"
+    "setup": "pnpm install && firebase login && firebase use cortex-dc-portal",
+    "seed:users": "RUN_DIRECT=1 tsx packages/admin-tools/src/seedUsers.ts",
+    "seed:data": "RUN_DIRECT=1 tsx packages/admin-tools/src/seedData.ts",
+    "test:e2e": "playwright test -c tests/e2e/playwright.config.ts",
+    "test:e2e:ui": "playwright test -c tests/e2e/playwright.config.ts --ui",
+    "e2e:local": "E2E_BASE_URL=http://localhost:3000 pnpm test:e2e",
+    "report:e2e": "npx playwright show-report"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "@lhci/cli": "^0.15.1",
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^20.19.19",
     "concurrently": "^8.2.2",
     "firebase-tools": "^13.15.0",
+    "playwright": "^1.56.0",
+    "tsx": "^4.20.6",
     "turbo": "^2.0.12",
-    "@types/node": "^20.11.16"
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
   },
-  "packageManager": "pnpm@8.15.1"
+  "packageManager": "pnpm@8.15.1",
+  "dependencies": {
+    "firebase": "^10.8.0",
+    "firebase-admin": "^13.5.0"
+  }
 }

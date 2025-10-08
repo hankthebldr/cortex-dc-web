@@ -1,0 +1,9 @@
+This is a sample file for E2E testing of Firebase Storage functionality.
+
+It contains sample content that can be used to test:
+- File uploads
+- File downloads  
+- Content type validation
+- Storage security rules
+
+Created by E2E test automation.
