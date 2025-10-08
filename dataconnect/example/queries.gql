@@ -1,0 +1,29 @@
+mutation CreateNewEngagement($clientName: String, $description: String, $endDate: Date!, $name: String!, $startDate: Date!, $status: String!) @auth(level: USER) {
+  engagement_insert(data: {clientName: $clientName, description: $description, endDate: $endDate, name: $name, startDate: $startDate, status: $status})
+}
+
+query ListEngagements @auth(level: USER) {
+  engagements {
+    id
+    name
+    startDate
+    endDate
+    status
+  }
+}
+
+mutation AssignUserToEngagement($userId: UUID!, $engagementId: UUID!, $assignmentDate: Date!, $roleOnEngagement: String!) @auth(level: USER) {
+  assignment_insert(data: {userId: $userId, engagementId: $engagementId, assignmentDate: $assignmentDate, roleOnEngagement: $roleOnEngagement})
+}
+
+query ListResourceRequestsForUser($userId: UUID!) @auth(level: USER) {
+  resourceRequests(where: {userId: {eq: $userId}}) {
+    id
+    technicalResource {
+      name
+      type
+    }
+    quantity
+    status
+  }
+}

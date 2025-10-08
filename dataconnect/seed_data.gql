@@ -1,0 +1,110 @@
+mutation SeedDatabase @transaction @auth(level: NO_ACCESS) {
+  user_insertMany(data: [
+    {
+      id: "6b3b287a-aaaa-49f1-bbbb-4b6e69ddcc47",
+      createdAt: "2024-04-26T12:00:00Z",
+      displayName: "Alice Smith",
+      email: "alice.smith@example.com",
+      role: "Project Manager"
+    },
+    {
+      id: "6b3b287a-cccc-49f1-bbbb-4b6e69ddcc47",
+      createdAt: "2024-04-26T13:00:00Z",
+      displayName: "Bob Johnson",
+      email: "bob.johnson@example.com",
+      role: "Developer"
+    }
+  ])
+  technicalResource_insertMany(data: [
+    {
+      id: "a1b2c3d4-aaaa-49f1-bbbb-4b6e69ddcc47",
+      availabilityStatus: "Available",
+      costPerUnit: 50.0,
+      createdAt: "2024-04-26T12:30:00Z",
+      name: "Laptop",
+      type: "Hardware"
+    },
+    {
+      id: "a1b2c3d4-eeee-49f1-bbbb-4b6e69ddcc47",
+      availabilityStatus: "In Use",
+      costPerUnit: 25.0,
+      createdAt: "2024-04-26T13:30:00Z",
+      name: "Software License",
+      type: "Software"
+    }
+  ])
+  engagement_insertMany(data: [
+    {
+      id: "e9f8d7c6-aaaa-49f1-bbbb-4b6e69ddcc47",
+      createdAt: "2024-04-26T14:00:00Z",
+      endDate: "2024-12-31",
+      name: "Project Alpha",
+      startDate: "2024-05-01",
+      status: "Active"
+    },
+    {
+      id: "e9f8d7c6-ffff-49f1-bbbb-4b6e69ddcc47",
+      createdAt: "2024-04-26T15:00:00Z",
+      endDate: "2024-11-30",
+      name: "Project Beta",
+      startDate: "2024-06-01",
+      status: "Planning"
+    }
+  ])
+  assignment_insertMany(data: [
+    {
+      userId: "6b3b287a-aaaa-49f1-bbbb-4b6e69ddcc47",
+      engagementId: "e9f8d7c6-aaaa-49f1-bbbb-4b6e69ddcc47",
+      assignmentDate: "2024-05-01",
+      createdAt: "2024-04-27T08:00:00Z",
+      roleOnEngagement: "Project Manager"
+    },
+    {
+      userId: "6b3b287a-cccc-49f1-bbbb-4b6e69ddcc47",
+      engagementId: "e9f8d7c6-ffff-49f1-bbbb-4b6e69ddcc47",
+      assignmentDate: "2024-06-01",
+      createdAt: "2024-04-27T09:00:00Z",
+      roleOnEngagement: "Developer"
+    }
+  ])
+  resourceRequest_insertMany(data: [
+    {
+      id: "r1r2r3r4-aaaa-49f1-bbbb-4b6e69ddcc47",
+      technicalResourceId: "a1b2c3d4-aaaa-49f1-bbbb-4b6e69ddcc47",
+      userId: "6b3b287a-cccc-49f1-bbbb-4b6e69ddcc47",
+      createdAt: "2024-04-27T10:00:00Z",
+      neededByDate: "2024-05-15",
+      quantity: 1,
+      requestDate: "2024-04-27",
+      status: "Approved"
+    },
+    {
+      id: "r1r2r3r4-bbbb-49f1-bbbb-4b6e69ddcc47",
+      technicalResourceId: "a1b2c3d4-eeee-49f1-bbbb-4b6e69ddcc47",
+      userId: "6b3b287a-aaaa-49f1-bbbb-4b6e69ddcc47",
+      createdAt: "2024-04-27T11:00:00Z",
+      neededByDate: "2024-06-01",
+      quantity: 5,
+      requestDate: "2024-04-27",
+      status: "Pending"
+    }
+  ])
+  activityLog_insertMany(data: [
+    {
+      engagementId: "e9f8d7c6-aaaa-49f1-bbbb-4b6e69ddcc47",
+      userId: "6b3b287a-aaaa-49f1-bbbb-4b6e69ddcc47",
+      activityDate: "2024-04-26",
+      createdAt: "2024-04-27T14:00:00Z",
+      description: "Initial project planning",
+      hoursSpent: 8.0
+    },
+    {
+      engagementId: "e9f8d7c6-ffff-49f1-bbbb-4b6e69ddcc47",
+      userId: "6b3b287a-cccc-49f1-bbbb-4b6e69ddcc47",
+      activityDate: "2024-04-26",
+      createdAt: "2024-04-27T15:00:00Z",
+      description: "Software development",
+      hoursSpent: 6.0
+    }
+  ])
+}

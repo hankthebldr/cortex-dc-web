@@ -1,0 +1,58 @@
+type User @table {
+  displayName: String!
+  email: String!
+  role: String!
+  createdAt: Timestamp!
+  photoUrl: String
+  department: String
+}
+
+type Engagement @table {
+  name: String!
+  startDate: Date!
+  endDate: Date!
+  status: String!
+  createdAt: Timestamp!
+  description: String
+  clientName: String
+}
+
+type ActivityLog @table {
+  user: User
+  engagement: Engagement
+  activityDate: Date!
+  description: String!
+  hoursSpent: Float!
+  createdAt: Timestamp!
+  notes: String
+}
+
+type TechnicalResource @table {
+  name: String!
+  type: String!
+  availabilityStatus: String!
+  createdAt: Timestamp!
+  description: String
+  costPerUnit: Float
+}
+
+type ResourceRequest @table {
+  user: User
+  technicalResource: TechnicalResource
+  requestDate: Date!
+  neededByDate: Date!
+  status: String!
+  quantity: Int!
+  createdAt: Timestamp!
+  justification: String
+  approvalDate: Date
+}
+
+type Assignment @table(key: ["user", "engagement"]) {
+  user: User!
+  engagement: Engagement!
+  assignmentDate: Date!
+  roleOnEngagement: String!
+  createdAt: Timestamp!
+  expectedHoursPerWeek: Float
+}
