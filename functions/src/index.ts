@@ -8,8 +8,8 @@
  */
 
 import {setGlobalOptions} from "firebase-functions";
-import {onRequest} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
+import {onCall} from "firebase-functions/v2/https";
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
@@ -26,7 +26,24 @@ import * as logger from "firebase-functions/logger";
 // this will be the maximum concurrent request count.
 setGlobalOptions({ maxInstances: 10 });
 
-// export const helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+type UiEventPayload = {
+  eventName?: string;
+  context?: Record<string, unknown>;
+};
+
+export const recordUiEvent = onCall<UiEventPayload>(({data, auth}) => {
+  const eventName = data.eventName ?? "unknown";
+  const context = data.context ?? {};
+
+  logger.info("UI event received", {
+    eventName,
+    context,
+    user: auth?.uid ?? null,
+    timestamp: new Date().toISOString(),
+  });
+
+  return {
+    acknowledged: true,
+    recordedAt: new Date().toISOString(),
+  };
+});
