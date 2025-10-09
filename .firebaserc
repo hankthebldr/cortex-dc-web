@@ -1,5 +1,14 @@
 {
   "projects": {
     "default": "cortex-dc-portal"
+  },
+  "targets": {},
+  "etags": {
+    "cortex-dc-portal": {
+      "extensionInstances": {
+        "firestore-bigquery-export": "ec31ff37f8f60db46f352c8059a3ec6a8208a9e5af5161f0c9f7d6bf839720d8",
+        "firestore-multimodal-genai": "64a75f7eacaed0b7fd22dcf35ecd49f8e1cac77ccb806f2fc7730de086e61fe5"
+      }
+    }
   }
 }

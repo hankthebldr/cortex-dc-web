@@ -66,6 +66,9 @@ importers:
       firebase:
         specifier: ^10.8.0
         version: 10.14.1
+      lucide-react:
+        specifier: ^0.396.0
+        version: 0.396.0(react@18.3.1)
       next:
         specifier: 14.2.13
         version: 14.2.13(@playwright/test@1.56.0)(react-dom@18.3.1)(react@18.3.1)
@@ -85,6 +88,15 @@ importers:
         specifier: ^3.22.4
         version: 3.25.76
     devDependencies:
+      '@tailwindcss/aspect-ratio':
+        specifier: ^0.4.2
+        version: 0.4.2(tailwindcss@3.4.18)
+      '@tailwindcss/forms':
+        specifier: ^0.5.10
+        version: 0.5.10(tailwindcss@3.4.18)
+      '@tailwindcss/typography':
+        specifier: ^0.5.19
+        version: 0.5.19(tailwindcss@3.4.18)
       '@types/node':
         specifier: ^20.11.16
         version: 20.19.19
@@ -115,6 +127,9 @@ importers:
 
   functions:
     dependencies:
+      '@dataconnect/generated':
+        specifier: file:src/dataconnect-generated
+        version: file:functions/src/dataconnect-generated(firebase@10.14.1)
       '@genkit-ai/firebase':
         specifier: ^1.21.0
         version: 1.21.0(@google-cloud/firestore@7.11.6)(firebase-admin@12.7.0)(firebase@10.14.1)(genkit@1.21.0)
@@ -155,6 +170,22 @@ importers:
       tsx:
         specifier: ^4.20.6
         version: 4.20.6
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/admin-tools:
+    dependencies:
+      firebase-admin:
+        specifier: ^13.5.0
+        version: 13.5.0
+      tsx:
+        specifier: ^4.20.6
+        version: 4.20.6
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.19
+        version: 20.19.19
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -214,6 +245,25 @@ importers:
       vitest:
         specifier: ^1.2.2
         version: 1.6.1(@types/node@20.19.19)
+
+  packages/test-utils:
+    dependencies:
+      '@playwright/test':
+        specifier: ^1.56.0
+        version: 1.56.0
+      firebase:
+        specifier: ^10.8.0
+        version: 10.14.1
+      playwright:
+        specifier: ^1.56.0
+        version: 1.56.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.19
+        version: 20.19.19
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
   packages/ui:
     dependencies:
@@ -8246,6 +8296,32 @@ packages:
       tslib: 2.8.1
     dev: false
 
+  /@tailwindcss/aspect-ratio@0.4.2(tailwindcss@3.4.18):
+    resolution: {integrity: sha512-8QPrypskfBa7QIMuKHg2TA7BqES6vhBrDLOv8Unb6FcFyd3TjKbc6lcmb9UPQHxfl24sXoJ41ux/H7qQQvfaSQ==}
+    peerDependencies:
+      tailwindcss: '>=2.0.0 || >=3.0.0 || >=3.0.0-alpha.1'
+    dependencies:
+      tailwindcss: 3.4.18(tsx@4.20.6)
+    dev: true
+
+  /@tailwindcss/forms@0.5.10(tailwindcss@3.4.18):
+    resolution: {integrity: sha512-utI1ONF6uf/pPNO68kmN1b8rEwNXv3czukalo8VtJH8ksIkZXr3Q3VYudZLkCsDd4Wku120uF02hYK25XGPorw==}
+    peerDependencies:
+      tailwindcss: '>=3.0.0 || >= 3.0.0-alpha.1 || >= 4.0.0-alpha.20 || >= 4.0.0-beta.1'
+    dependencies:
+      mini-svg-data-uri: 1.4.4
+      tailwindcss: 3.4.18(tsx@4.20.6)
+    dev: true
+
+  /@tailwindcss/typography@0.5.19(tailwindcss@3.4.18):
+    resolution: {integrity: sha512-w31dd8HOx3k9vPtcQh5QHP9GwKcgbMp87j58qi6xgiBnFFtKEAgCWnDw4qUT8aHwkCp8bKvb/KGKWWHedP0AAg==}
+    peerDependencies:
+      tailwindcss: '>=3.0.0 || insiders || >=4.0.0-alpha.20 || >=4.0.0-beta.1'
+    dependencies:
+      postcss-selector-parser: 6.0.10
+      tailwindcss: 3.4.18(tsx@4.20.6)
+    dev: true
+
   /@tanstack/react-virtual@3.13.12(react-dom@18.3.1)(react@18.3.1):
     resolution: {integrity: sha512-Gd13QdxPSukP8ZrkbgS2RwoZseTTbQPLnQEn7HY/rqtM+8Zt95f7xKC7N0EsKs7aoz0WzZ+fditZux+F8EzYxA==}
     peerDependencies:
@@ -8287,6 +8363,7 @@ packages:
   /@tootallnate/once@2.0.0:
     resolution: {integrity: sha512-XCuKFP5PS55gnMVu3dty8KPatLqUoy/ZYzDzAGCQ8JNFCkLXzmI7vNHCR+XpbZaMWQK/vQubr7PkYq8g470J/A==}
     engines: {node: '>= 10'}
+    requiresBuild: true
 
   /@tootallnate/quickjs-emscripten@0.23.0:
     resolution: {integrity: sha512-C5Mc6rdnsaJDjO3UpGW/CQTHtCKaYlScZTly4JIu97Jxo/odCiH0ITnDXSJPTOrEKk/ycSZ0AOgTmkDtkOsvIA==}
@@ -13424,6 +13501,7 @@ packages:
   /http-proxy-agent@5.0.0:
     resolution: {integrity: sha512-n2hY8YdoRE1i7r6M0w9DIw5GgZN0G25P8zLCRQ8rjXtTU3vsNFBI/vWK/UIeE6g5MUUz6avwAPXmL6Fy9D/90w==}
     engines: {node: '>= 6'}
+    requiresBuild: true
     dependencies:
       '@tootallnate/once': 2.0.0
       agent-base: 6.0.2
@@ -15549,6 +15627,11 @@ packages:
     engines: {node: '>=12'}
     dev: true
 
+  /mini-svg-data-uri@1.4.4:
+    resolution: {integrity: sha512-r9deDe9p5FJUPZAk3A59wGH7Ii9YrjjWw0jmw/liSbHl2CHiyXj6FcDXDu2K3TjVAXqiJdaw3xxwlZZr9E6nHg==}
+    hasBin: true
+    dev: true
+
   /minimatch@10.0.3:
     resolution: {integrity: sha512-IPZ167aShDZZUMdRk66cyQAW3qr0WzbHkPdMYa8bzZhlHhO3jALbKdxcaak7W9FfT2rZNpQuUu4Od7ILEpXSaw==}
     engines: {node: 20 || >=22}
@@ -16635,6 +16718,14 @@ packages:
     dependencies:
       postcss: 8.5.6
       postcss-selector-parser: 6.1.2
+
+  /postcss-selector-parser@6.0.10:
+    resolution: {integrity: sha512-IQ7TZdoaqbT+LCpShg46jnZVlhWD2w6iQYAcYXfHARZ7X1t/UGhhceQDs5X0cGqKvYlHNOuv7Oa1xmb0oQuA3w==}
+    engines: {node: '>=4'}
+    dependencies:
+      cssesc: 3.0.0
+      util-deprecate: 1.0.2
+    dev: true
 
   /postcss-selector-parser@6.1.2:
     resolution: {integrity: sha512-Q8qQfPiZ+THO/3ZrOrO0cJJKfpYCagtMUkXbnEfmgUjwXg6z/WBeOyS9APBBPCTSiDV+s4SwQGu8yFsiMRIudg==}
@@ -20124,3 +20215,14 @@ packages:
 
   /zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
+  file:functions/src/dataconnect-generated(firebase@10.14.1):
+    resolution: {directory: functions/src/dataconnect-generated, type: directory}
+    id: file:functions/src/dataconnect-generated
+    name: '@dataconnect/generated'
+    engines: {node: ' >=18.0'}
+    peerDependencies:
+      firebase: ^10.14.0 || ^11.3.0 || ^12.0.0
+    dependencies:
+      firebase: 10.14.1
+    dev: false
