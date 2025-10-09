@@ -1,0 +1,44 @@
+policies:
+  - displayName: "App Hosting - Elevated latency"
+    combiner: "OR"
+    documentation:
+      content: |
+        ## App Hosting latency runbook
+        1. Visit the "Cortex DC Web - App Hosting Overview" dashboard for real-time signals.
+        2. Check recent deploys in Firebase App Hosting and roll back if latency correlates with a release.
+        3. Inspect Cloud Run logs for container restarts or out-of-memory events.
+        4. If saturation persists beyond 15 minutes, scale `maxInstances` temporarily and page the on-call engineer.
+      mimeType: "text/markdown"
+    conditions:
+      - displayName: "p95 latency > 1.5s for 5 minutes"
+        conditionThreshold:
+          aggregations:
+            - alignmentPeriod: "60s"
+              perSeriesAligner: "ALIGN_PERCENTILE_95"
+          comparison: "COMPARISON_GT"
+          duration: "300s"
+          filter: "metric.type=\"run.googleapis.com/request_latencies\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"cortex-dc-web\""
+          thresholdValue: 1500
+    notificationChannels: []
+
+  - displayName: "Cloud Functions - Error rate"
+    combiner: "OR"
+    documentation:
+      content: |
+        ## Cloud Functions error rate runbook
+        1. Open the "Cortex DC Web - Cloud Functions Overview" dashboard.
+        2. Drill into the Cloud Logging query for the impacted function.
+        3. Validate upstream dependencies (App Hosting, DataConnect) are healthy.
+        4. Re-deploy the last known-good version or disable the trigger if sustained errors stay above five per minute for more than 15 minutes.
+      mimeType: "text/markdown"
+    conditions:
+      - displayName: "Function errors > 5/min"
+        conditionThreshold:
+          aggregations:
+            - alignmentPeriod: "60s"
+              perSeriesAligner: "ALIGN_DELTA"
+          comparison: "COMPARISON_GT"
+          duration: "300s"
+          filter: "metric.type=\"cloudfunctions.googleapis.com/function/execution_count\" metric.label.\"status\"=\"error\" resource.type=\"cloud_function\" resource.label.\"function_name\"=\"cortexDcWeb\""
+          thresholdValue: 5
+    notificationChannels: []

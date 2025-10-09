@@ -1,0 +1,140 @@
+{
+  "displayName": "Cortex DC Web - Cloud Functions Overview",
+  "labels": {
+    "team": "cortex-dc-web"
+  },
+  "dashboardFilters": [
+    {
+      "filterType": "RESOURCE_LABEL",
+      "labelKey": "function_name",
+      "templateVariable": "function",
+      "stringValue": "cortexDcWeb"
+    }
+  ],
+  "mosaicLayout": {
+    "columns": 12,
+    "tiles": [
+      {
+        "xPos": 0,
+        "yPos": 0,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Function executions",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "STACKED_AREA",
+                "legendTemplate": "Executions",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "perSeriesAligner": "ALIGN_RATE",
+                      "alignmentPeriod": "60s"
+                    },
+                    "filter": "metric.type=\"cloudfunctions.googleapis.com/function/execution_count\" resource.type=\"cloud_function\" resource.label.\"function_name\"=\"cortexDcWeb\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "label": "Executions / sec",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 6,
+        "yPos": 0,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Execution duration (p95)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "legendTemplate": "Duration",
+                "timeSeriesQuery": {
+                  "unitOverride": "ms",
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95",
+                      "alignmentPeriod": "60s"
+                    },
+                    "filter": "metric.type=\"cloudfunctions.googleapis.com/function/execution_times\" resource.type=\"cloud_function\" resource.label.\"function_name\"=\"cortexDcWeb\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "label": "Duration (ms)",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 4,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Error count",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "legendTemplate": "Errors",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "perSeriesAligner": "ALIGN_RATE",
+                      "alignmentPeriod": "60s"
+                    },
+                    "filter": "metric.type=\"cloudfunctions.googleapis.com/function/execution_count\" metric.label.\"status\"=\"error\" resource.type=\"cloud_function\" resource.label.\"function_name\"=\"cortexDcWeb\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "label": "Errors / sec",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 6,
+        "yPos": 4,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Cold starts",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "COLUMN",
+                "legendTemplate": "Cold starts",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "perSeriesAligner": "ALIGN_SUM",
+                      "alignmentPeriod": "60s"
+                    },
+                    "filter": "metric.type=\"cloudfunctions.googleapis.com/function/cold_starts_count\" resource.type=\"cloud_function\" resource.label.\"function_name\"=\"cortexDcWeb\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "label": "Cold starts",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
