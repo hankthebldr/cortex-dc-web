@@ -25,6 +25,10 @@
   padding: 0;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 html,
 body {
   max-width: 100vw;
@@ -41,10 +45,16 @@ a {
   text-decoration: none;
 }
 
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid rgba(0, 198, 255, 0.85);
+  outline-offset: 4px;
+}
+
 main {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 64px;
   padding: 48px clamp(24px, 5vw, 72px) 96px;
 }
 
@@ -95,6 +105,41 @@ main {
   flex-wrap: wrap;
 }
 
+.flow-nav {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.flow-nav__item {
+  padding: 18px 20px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid rgba(0, 198, 255, 0.16);
+  background: rgba(4, 12, 28, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.25s ease, transform 0.25s ease, background 0.25s ease;
+}
+
+.flow-nav__item:hover,
+.flow-nav__item:focus-visible {
+  background: rgba(123, 255, 143, 0.16);
+  border-color: rgba(123, 255, 143, 0.5);
+  transform: translateY(-3px);
+}
+
+.flow-nav__label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.flow-nav__description {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
 .btn-primary,
 .btn-ghost {
   border-radius: 999px;
@@ -130,18 +175,6 @@ main {
   transform: translateY(-2px);
 }
 
-.dashboard {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 28px;
-}
-
-@media (max-width: 1100px) {
-  .dashboard {
-    grid-template-columns: 1fr;
-  }
-}
-
 .panel {
   background: rgba(8, 19, 38, 0.9);
   border: 1px solid rgba(0, 198, 255, 0.12);
@@ -149,6 +182,13 @@ main {
   padding: 28px;
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(16px);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.panel:hover {
+  transform: translateY(-4px);
+  border-color: rgba(123, 255, 143, 0.28);
+  box-shadow: var(--shadow-md);
 }
 
 .panel__title {
@@ -158,6 +198,77 @@ main {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.flow-section {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  scroll-margin-top: 120px;
+}
+
+.flow-section__header {
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.flow-section__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.75rem;
+  color: rgba(148, 163, 184, 0.7);
+  font-weight: 600;
+}
+
+.flow-section__title {
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+}
+
+.flow-section__subtitle {
+  color: var(--color-text-secondary);
+  font-size: 0.98rem;
+}
+
+.flow-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.flow-grid {
+  display: grid;
+  gap: 28px;
+}
+
+.flow-grid--dual {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+}
+
+.flow-grid--analytics {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+}
+
+.flow-grid--balanced {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+@media (max-width: 1200px) {
+  .flow-grid--dual,
+  .flow-grid--analytics {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .flow-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .flow-section {
+    gap: 28px;
+  }
 }
 
 .panel__title span {
@@ -444,6 +555,13 @@ main {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.activity-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(123, 255, 143, 0.3);
+  box-shadow: var(--shadow-sm);
 }
 
 .activity-card strong {
@@ -553,6 +671,13 @@ main {
   display: flex;
   flex-direction: column;
   gap: 32px;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.workspace-grid:hover {
+  transform: translateY(-4px);
+  border-color: rgba(123, 255, 143, 0.28);
+  box-shadow: var(--shadow-lg);
 }
 
 .workspace-grid__header {
@@ -1329,6 +1454,13 @@ main {
   flex-direction: column;
   gap: 18px;
   box-shadow: var(--shadow-sm);
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.guided-dashboards__card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(123, 255, 143, 0.3);
+  box-shadow: var(--shadow-md);
 }
 
 .guided-dashboards__card header {
