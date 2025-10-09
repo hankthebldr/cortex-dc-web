@@ -53,6 +53,12 @@ type ActivityCard = {
   badge: string;
 };
 
+type FlowStage = {
+  id: string;
+  label: string;
+  description: string;
+};
+
 const metrics: Metric[] = [
   {
     label: 'Ingest Volume',
@@ -165,6 +171,34 @@ const activityCards: ActivityCard[] = [
     title: 'Genkit copilots online',
     detail: 'Vision + text summarization streaming at 210ms latency',
     badge: 'AI Ops',
+  },
+];
+
+const flowStages: FlowStage[] = [
+  {
+    id: 'plan',
+    label: 'Plan programs',
+    description: 'Align capabilities, dashboards, and missions before execution.',
+  },
+  {
+    id: 'activate',
+    label: 'Activate analytics',
+    description: 'Operationalize data pipelines, record designers, and live telemetry.',
+  },
+  {
+    id: 'orchestrate',
+    label: 'Orchestrate workflows',
+    description: 'Blend AI copilots, visualization, and automation launchpads.',
+  },
+  {
+    id: 'collaborate',
+    label: 'Collaborate & learn',
+    description: 'Capture context, share updates, and support responsive handoffs.',
+  },
+  {
+    id: 'govern',
+    label: 'Govern outcomes',
+    description: 'Track project lanes, SOP progress, and record health.',
   },
 ];
 
@@ -708,48 +742,122 @@ export default function Page() {
     <main>
       <header className="hero">
         <span className="hero__eyebrow">Cortex XSIAM Operations</span>
-        <h1 className="hero__title">Command the entire detection-to-response lifecycle</h1>
+        <h1 className="hero__title">Orchestrate analytics programs from discovery to scale</h1>
         <p className="hero__subtitle">
-          Monitor live analytics, curate investigation timelines, and launch the right workflow in seconds. The
-          Cortex-inspired interface harmonizes data, automation, and collaboration for modern security teams.
+          Coordinate planning, activation, orchestration, and governance with a console built for modern security analytics
+          delivery.
         </p>
         <div className="hero__actions">
-          <a className="btn-primary" href="#capabilities">
-            Explore capability modes
+          <a className="btn-primary" href="#plan">
+            Start with the flow
           </a>
-          <a className="btn-ghost" href="#dashboard-blueprints">
-            Design guided dashboards
+          <a className="btn-ghost" href="#capabilities">
+            Explore capability modes
           </a>
           <a className="btn-ghost" href="#record-designer">
             Launch new record
           </a>
         </div>
+        <nav className="flow-nav" aria-label="Analytics project flow">
+          {flowStages.map((stage) => (
+            <a key={stage.id} className="flow-nav__item" href={`#${stage.id}`}>
+              <span className="flow-nav__label">{stage.label}</span>
+              <span className="flow-nav__description">{stage.description}</span>
+            </a>
+          ))}
+        </nav>
       </header>
 
-      <CapabilitySidebar capabilities={capabilities} />
-      <GuidedDashboards options={dashboardOptions} />
-
-      <section className="dashboard">
-        <DataAnalyticsPanel metrics={metrics} timeline={timelineEvents} />
-        <RecordDesigner />
+      <section className="flow-section" id="plan">
+        <div className="flow-section__header">
+          <p className="flow-section__eyebrow">Plan</p>
+          <h2 className="flow-section__title">Design the mission and choose the right workspace</h2>
+          <p className="flow-section__subtitle">
+            Capture the operating mode and align prebuilt dashboard blueprints so every squad understands the mission ahead.
+          </p>
+        </div>
+        <div className="flow-grid flow-grid--dual">
+          <CapabilitySidebar capabilities={capabilities} />
+          <GuidedDashboards options={dashboardOptions} />
+        </div>
       </section>
 
-      <DataConnectTerminal
-        commands={terminalCommands}
-        operations={terminalOperations}
-        pipelines={dataPipelines}
-      />
+      <section className="flow-section" id="activate">
+        <div className="flow-section__header">
+          <p className="flow-section__eyebrow">Activate</p>
+          <h2 className="flow-section__title">Stand up analytics pipelines and operational records</h2>
+          <p className="flow-section__subtitle">
+            Monitor key metrics, sketch records, and use Cortex Data Connect to push new telemetry into production faster.
+          </p>
+        </div>
+        <div className="flow-stack">
+          <div className="flow-grid flow-grid--analytics">
+            <DataAnalyticsPanel metrics={metrics} timeline={timelineEvents} />
+            <RecordDesigner />
+          </div>
+          <DataConnectTerminal
+            commands={terminalCommands}
+            operations={terminalOperations}
+            pipelines={dataPipelines}
+          />
+        </div>
+      </section>
 
-      <VisualizationWorkbench modules={visualizationModules} scenarios={visualizationScenarios} />
+      <section className="flow-section" id="orchestrate">
+        <div className="flow-section__header">
+          <p className="flow-section__eyebrow">Orchestrate</p>
+          <h2 className="flow-section__title">Visualize scenarios and launch the right automations</h2>
+          <p className="flow-section__subtitle">
+            Move seamlessly from hypothesis to action with interactive workbenches, curated launchpads, and Genkit copilots.
+          </p>
+        </div>
+        <div className="flow-stack">
+          <VisualizationWorkbench modules={visualizationModules} scenarios={visualizationScenarios} />
+          <div className="flow-grid flow-grid--balanced">
+            <WorkflowLaunchpads links={quickLinks} />
+            <AIGenerativeOps
+              insights={genkitInsights}
+              channels={multiModalChannels}
+              agents={realtimeAgents}
+            />
+          </div>
+        </div>
+      </section>
 
-      <WorkflowLaunchpads links={quickLinks} />
-      <AIGenerativeOps insights={genkitInsights} channels={multiModalChannels} agents={realtimeAgents} />
-      <LiveOpsFeed cards={activityCards} />
+      <section className="flow-section" id="collaborate">
+        <div className="flow-section__header">
+          <p className="flow-section__eyebrow">Collaborate</p>
+          <h2 className="flow-section__title">Keep operators aligned with live updates and context</h2>
+          <p className="flow-section__subtitle">
+            Review automation signals, share key findings, and keep notes anchored to every high-value record.
+          </p>
+        </div>
+        <div className="flow-grid flow-grid--balanced">
+          <LiveOpsFeed cards={activityCards} />
+          <NotesWorkbench recordName="Record: Identity Misuse" notes={noteEntries} />
+        </div>
+      </section>
 
-      <NotesWorkbench recordName="Record: Identity Misuse" notes={noteEntries} />
-      <ProjectPortfolio lanes={projectLanes} />
-      <StandardOperatingProcedure name="High-Sensitivity Identity Intrusion" version="2.4" steps={sopSteps} />
-      <RecordOperationsTable records={recordRows} />
+      <section className="flow-section" id="govern">
+        <div className="flow-section__header">
+          <p className="flow-section__eyebrow">Govern</p>
+          <h2 className="flow-section__title">Track progress and codify the path to readiness</h2>
+          <p className="flow-section__subtitle">
+            Manage program swimlanes, reinforce standard operating procedures, and audit active Cortex records.
+          </p>
+        </div>
+        <div className="flow-stack">
+          <ProjectPortfolio lanes={projectLanes} />
+          <div className="flow-grid flow-grid--dual">
+            <StandardOperatingProcedure
+              name="High-Sensitivity Identity Intrusion"
+              version="2.4"
+              steps={sopSteps}
+            />
+            <RecordOperationsTable records={recordRows} />
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
