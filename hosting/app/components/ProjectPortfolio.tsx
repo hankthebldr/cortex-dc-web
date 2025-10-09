@@ -17,7 +17,11 @@ interface ProjectPortfolioProps {
 
 export function ProjectPortfolio({ lanes }: ProjectPortfolioProps) {
   return (
-    <section className="workspace-grid" aria-labelledby="project-portfolio-title">
+    <section
+      id="project-portfolio"
+      className="workspace-grid"
+      aria-labelledby="project-portfolio-title"
+    >
       <header className="workspace-grid__header">
         <div>
           <p className="workspace-grid__eyebrow">Programs</p>

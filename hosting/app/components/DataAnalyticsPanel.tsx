@@ -18,7 +18,11 @@ interface DataAnalyticsPanelProps {
 
 export function DataAnalyticsPanel({ metrics, timeline }: DataAnalyticsPanelProps) {
   return (
-    <article className="panel" aria-labelledby="data-analytics-title">
+    <article
+      id="investigation"
+      className="panel"
+      aria-labelledby="data-analytics-title"
+    >
       <h2 id="data-analytics-title" className="panel__title">
         <span>DX</span>
         Data &amp; Analytics Workspace

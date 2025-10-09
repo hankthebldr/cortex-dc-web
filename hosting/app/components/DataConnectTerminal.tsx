@@ -40,7 +40,11 @@ export function DataConnectTerminal({
   pipelines,
 }: DataConnectTerminalProps) {
   return (
-    <section className="panel terminal" aria-labelledby="terminal-title">
+    <section
+      id="automation"
+      className="panel terminal"
+      aria-labelledby="terminal-title"
+    >
       <header className="panel__header">
         <h2 id="terminal-title">
           <span>DX</span>
