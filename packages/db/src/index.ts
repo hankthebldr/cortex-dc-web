@@ -4,11 +4,11 @@ export { FirestoreQueries } from './firestore/queries';
 
 // Schema definitions
 export * from './schemas/user';
-export * from './schemas/pov';
-export * from './schemas/trr';
 export * from './schemas/chat';
 
-// Types
+// Types (includes the main POV and TRR schemas)
+export * from './types/auth';
+export * from './types/projects';
 export type { 
   DatabaseClient,
   QueryResult,
