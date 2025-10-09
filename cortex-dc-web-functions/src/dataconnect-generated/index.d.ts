@@ -8,8 +8,6 @@ export type Int64String = string;
 export type DateString = string;
 
 
-
-
 export interface ActivityLog_Key {
   id: UUIDString;
   __typename?: 'ActivityLog_Key';
@@ -91,50 +89,34 @@ export interface User_Key {
   __typename?: 'User_Key';
 }
 
-interface CreateNewEngagementRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: CreateNewEngagementVariables): MutationRef<CreateNewEngagementData, CreateNewEngagementVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: CreateNewEngagementVariables): MutationRef<CreateNewEngagementData, CreateNewEngagementVariables>;
-  operationName: string;
-}
-export const createNewEngagementRef: CreateNewEngagementRef;
+/* Allow users to create refs without passing in DataConnect */
+export function createNewEngagementRef(vars: CreateNewEngagementVariables): MutationRef<CreateNewEngagementData, CreateNewEngagementVariables>;
+/* Allow users to pass in custom DataConnect instances */
+export function createNewEngagementRef(dc: DataConnect, vars: CreateNewEngagementVariables): MutationRef<CreateNewEngagementData, CreateNewEngagementVariables>;
 
 export function createNewEngagement(vars: CreateNewEngagementVariables): MutationPromise<CreateNewEngagementData, CreateNewEngagementVariables>;
 export function createNewEngagement(dc: DataConnect, vars: CreateNewEngagementVariables): MutationPromise<CreateNewEngagementData, CreateNewEngagementVariables>;
 
-interface ListEngagementsRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (): QueryRef<ListEngagementsData, undefined>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect): QueryRef<ListEngagementsData, undefined>;
-  operationName: string;
-}
-export const listEngagementsRef: ListEngagementsRef;
+/* Allow users to create refs without passing in DataConnect */
+export function listEngagementsRef(): QueryRef<ListEngagementsData, undefined>;
+/* Allow users to pass in custom DataConnect instances */
+export function listEngagementsRef(dc: DataConnect): QueryRef<ListEngagementsData, undefined>;
 
 export function listEngagements(): QueryPromise<ListEngagementsData, undefined>;
 export function listEngagements(dc: DataConnect): QueryPromise<ListEngagementsData, undefined>;
 
-interface AssignUserToEngagementRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: AssignUserToEngagementVariables): MutationRef<AssignUserToEngagementData, AssignUserToEngagementVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: AssignUserToEngagementVariables): MutationRef<AssignUserToEngagementData, AssignUserToEngagementVariables>;
-  operationName: string;
-}
-export const assignUserToEngagementRef: AssignUserToEngagementRef;
+/* Allow users to create refs without passing in DataConnect */
+export function assignUserToEngagementRef(vars: AssignUserToEngagementVariables): MutationRef<AssignUserToEngagementData, AssignUserToEngagementVariables>;
+/* Allow users to pass in custom DataConnect instances */
+export function assignUserToEngagementRef(dc: DataConnect, vars: AssignUserToEngagementVariables): MutationRef<AssignUserToEngagementData, AssignUserToEngagementVariables>;
 
 export function assignUserToEngagement(vars: AssignUserToEngagementVariables): MutationPromise<AssignUserToEngagementData, AssignUserToEngagementVariables>;
 export function assignUserToEngagement(dc: DataConnect, vars: AssignUserToEngagementVariables): MutationPromise<AssignUserToEngagementData, AssignUserToEngagementVariables>;
 
-interface ListResourceRequestsForUserRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: ListResourceRequestsForUserVariables): QueryRef<ListResourceRequestsForUserData, ListResourceRequestsForUserVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: ListResourceRequestsForUserVariables): QueryRef<ListResourceRequestsForUserData, ListResourceRequestsForUserVariables>;
-  operationName: string;
-}
-export const listResourceRequestsForUserRef: ListResourceRequestsForUserRef;
+/* Allow users to create refs without passing in DataConnect */
+export function listResourceRequestsForUserRef(vars: ListResourceRequestsForUserVariables): QueryRef<ListResourceRequestsForUserData, ListResourceRequestsForUserVariables>;
+/* Allow users to pass in custom DataConnect instances */
+export function listResourceRequestsForUserRef(dc: DataConnect, vars: ListResourceRequestsForUserVariables): QueryRef<ListResourceRequestsForUserData, ListResourceRequestsForUserVariables>;
 
 export function listResourceRequestsForUser(vars: ListResourceRequestsForUserVariables): QueryPromise<ListResourceRequestsForUserData, ListResourceRequestsForUserVariables>;
 export function listResourceRequestsForUser(dc: DataConnect, vars: ListResourceRequestsForUserVariables): QueryPromise<ListResourceRequestsForUserData, ListResourceRequestsForUserVariables>;

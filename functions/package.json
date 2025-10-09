@@ -8,7 +8,7 @@
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log",
+    "test": "mocha -r ts-node/register test/**/*.test.ts",
     "genkit:start": "genkit start -- tsx --watch src/genkit-sample.ts"
   },
   "engines": {
@@ -16,6 +16,7 @@
   },
   "main": "lib/index.js",
   "dependencies": {
+    "@dataconnect/generated": "file:src/dataconnect-generated",
     "@genkit-ai/firebase": "^1.21.0",
     "@genkit-ai/vertexai": "^1.21.0",
     "express": "^5.1.0",
@@ -24,12 +25,17 @@
     "genkit": "^1.21.0"
   },
   "devDependencies": {
+    "@types/chai": "^5.2.2",
+    "@types/mocha": "^10.0.10",
     "@typescript-eslint/eslint-plugin": "^5.12.0",
     "@typescript-eslint/parser": "^5.12.0",
+    "chai": "^6.2.0",
     "eslint": "^8.9.0",
     "eslint-config-google": "^0.14.0",
     "eslint-plugin-import": "^2.25.4",
     "firebase-functions-test": "^3.1.0",
+    "mocha": "^11.7.4",
+    "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   },

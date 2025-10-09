@@ -1,10 +1,13 @@
 type User @table {
-  displayName: String!
-  email: String!
+  uid: String!
+  displayName: String
+  email: String
   role: String!
   createdAt: Timestamp!
+  updatedAt: Timestamp
   photoUrl: String
   department: String
+  providerIds: [String!]
 }
 
 type Engagement @table {

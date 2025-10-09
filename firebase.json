@@ -1,9 +1,4 @@
 {
-  "apphosting": {
-    "source": "apps/web",
-    "region": "us-central1"
-  },
-
   "functions": [
     {
       "source": "functions",
@@ -24,6 +19,33 @@
   "storage": {
     "rules": "storage.rules"
   },
+  "hosting": {
+    "public": "apps/web/out",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "apphosting": {
+    "source": "apps/web",
+    "region": "us-central1",
+    "backendId": "cortex-dc-backend",
+    "rootDir": "/",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log",
+      "functions"
+    ]
+  },
   "emulators": {
     "auth": {
       "port": 9098
@@ -35,7 +57,7 @@
       "port": 8081
     },
     "hosting": {
-      "port": 5002
+      "port": 5000
     },
     "storage": {
       "port": 9199
@@ -68,17 +90,6 @@
   },
   "dataconnect": {
     "source": "dataconnect"
-  },
-  "apphosting": {
-    "backendId": "cortex-dc-backend",
-    "rootDir": "/",
-    "ignore": [
-      "node_modules",
-      ".git",
-      "firebase-debug.log",
-      "firebase-debug.*.log",
-      "functions"
-    ]
   },
   "extensions": {}
 }

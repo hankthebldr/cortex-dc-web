@@ -20,6 +20,9 @@ module.exports = {
   ignorePatterns: [
     "/lib/**/*", // Ignore built files.
     "/generated/**/*", // Ignore generated files.
+    "/venv/**/*", // Ignore Python virtual environment
+    "/src/dataconnect-generated/**/*", // Ignore DataConnect generated files
+    "/test/**/*", // Ignore test files for now
   ],
   plugins: [
     "@typescript-eslint",

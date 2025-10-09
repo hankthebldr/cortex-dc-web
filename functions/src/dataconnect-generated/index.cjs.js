@@ -7,50 +7,35 @@ const connectorConfig = {
 };
 exports.connectorConfig = connectorConfig;
 
-const createNewEngagementRef = (dcOrVars, vars) => {
+exports.createNewEngagementRef = function createNewEngagementRef(dcOrVars, vars) {
   const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
   dcInstance._useGeneratedSdk();
   return mutationRef(dcInstance, 'CreateNewEngagement', inputVars);
 }
-createNewEngagementRef.operationName = 'CreateNewEngagement';
-exports.createNewEngagementRef = createNewEngagementRef;
-
 exports.createNewEngagement = function createNewEngagement(dcOrVars, vars) {
   return executeMutation(createNewEngagementRef(dcOrVars, vars));
 };
-
-const listEngagementsRef = (dc) => {
+exports.listEngagementsRef = function listEngagementsRef(dc) {
   const { dc: dcInstance} = validateArgs(connectorConfig, dc, undefined);
   dcInstance._useGeneratedSdk();
   return queryRef(dcInstance, 'ListEngagements');
 }
-listEngagementsRef.operationName = 'ListEngagements';
-exports.listEngagementsRef = listEngagementsRef;
-
 exports.listEngagements = function listEngagements(dc) {
   return executeQuery(listEngagementsRef(dc));
 };
-
-const assignUserToEngagementRef = (dcOrVars, vars) => {
+exports.assignUserToEngagementRef = function assignUserToEngagementRef(dcOrVars, vars) {
   const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
   dcInstance._useGeneratedSdk();
   return mutationRef(dcInstance, 'AssignUserToEngagement', inputVars);
 }
-assignUserToEngagementRef.operationName = 'AssignUserToEngagement';
-exports.assignUserToEngagementRef = assignUserToEngagementRef;
-
 exports.assignUserToEngagement = function assignUserToEngagement(dcOrVars, vars) {
   return executeMutation(assignUserToEngagementRef(dcOrVars, vars));
 };
-
-const listResourceRequestsForUserRef = (dcOrVars, vars) => {
+exports.listResourceRequestsForUserRef = function listResourceRequestsForUserRef(dcOrVars, vars) {
   const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
   dcInstance._useGeneratedSdk();
   return queryRef(dcInstance, 'ListResourceRequestsForUser', inputVars);
 }
-listResourceRequestsForUserRef.operationName = 'ListResourceRequestsForUser';
-exports.listResourceRequestsForUserRef = listResourceRequestsForUserRef;
-
 exports.listResourceRequestsForUser = function listResourceRequestsForUser(dcOrVars, vars) {
   return executeQuery(listResourceRequestsForUserRef(dcOrVars, vars));
 };

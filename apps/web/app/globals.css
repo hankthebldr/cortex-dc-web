@@ -7,7 +7,7 @@ body {
 }
 
 .cortex-brand-gradient {
-  @apply bg-gradient-to-r from-primary to-secondary;
+  @apply bg-gradient-to-r from-primary-500 to-secondary-500;
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');

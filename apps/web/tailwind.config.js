@@ -51,6 +51,7 @@ module.exports = {
           900: '#004d40',
           950: '#00251a',
         },
+      },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },

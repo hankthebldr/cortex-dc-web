@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  
   // Configure for development
   reactStrictMode: true,
   
@@ -12,6 +11,13 @@ const nextConfig = {
   // ESLint configuration
   eslint: {
     ignoreDuringBuilds: false
+  },
+  
+  // Support for Firebase deployment
+  output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
+  trailingSlash: true,
+  images: {
+    unoptimized: true
   }
 };
 

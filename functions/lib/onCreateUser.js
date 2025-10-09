@@ -44,35 +44,35 @@ if (admin.apps.length === 0) {
 const db = admin.firestore();
 /**
  * Cloud Function: onCreateUser
- * * Triggered automatically every time a new user is created in Firebase Authentication.
- * This function creates a corresponding user document in the 'users' collection
+ * Triggered automatically when a new user is created in Firebase Auth.
+ * This function creates a corresponding user document in the users collection
  * in Cloud Firestore with initial data.
  */
 exports.onCreateUser = functions.auth.user().onCreate(async (user) => {
     // 1. Get the new user's data from the Authentication event
     const uid = user.uid;
-    const email = user.email || 'N/A';
-    const displayName = user.displayName || 'Anonymous User';
+    const email = user.email || "N/A";
+    const displayName = user.displayName || "Anonymous User";
     const photoURL = user.photoURL || null;
     // 2. Define the initial data structure for the Firestore document
     const userData = {
         email: email,
         displayName: displayName,
         photoURL: photoURL,
-        createdAt: firestore_1.FieldValue.serverTimestamp(), // Use server timestamp for accuracy
-        role: 'user', // Default role for new users
-        lastActive: firestore_1.FieldValue.serverTimestamp()
+        createdAt: firestore_1.FieldValue.serverTimestamp(),
+        role: "user", // Default role for new users
+        lastActive: firestore_1.FieldValue.serverTimestamp(),
     };
-    // 3. Write the document to the 'users' collection using the user's UID as the document ID
+    // 3. Write document to users collection using the user's UID as document ID
     functions.logger.info(`Creating profile for new user: ${uid}`);
     try {
-        await db.collection('users').doc(uid).set(userData);
+        await db.collection("users").doc(uid).set(userData);
         functions.logger.info(`Successfully created user profile document for UID: ${uid}`);
         return null; // Function completed successfully
     }
     catch (error) {
         functions.logger.error(`Error creating user profile for UID: ${uid}`, error);
-        // Important: You might want to log this error and handle potential failure cases
+        // Important: log error and handle potential failure cases
         return null;
     }
 });
