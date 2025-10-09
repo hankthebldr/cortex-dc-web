@@ -24,6 +24,7 @@ export interface AssignUserToEngagementVariables {
   engagementId: UUIDString;
   assignmentDate: DateString;
   roleOnEngagement: string;
+  createdAt: TimestampString;
 }
 
 export interface Assignment_Key {
@@ -43,6 +44,7 @@ export interface CreateNewEngagementVariables {
   name: string;
   startDate: DateString;
   status: string;
+  createdAt: TimestampString;
 }
 
 export interface Engagement_Key {

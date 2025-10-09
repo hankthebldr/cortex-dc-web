@@ -328,6 +328,7 @@ export interface CreateNewEngagementVariables {
   name: string;
   startDate: DateString;
   status: string;
+  createdAt: TimestampString;
 }
 ```
 ### Return Type
@@ -353,13 +354,14 @@ const createNewEngagementVars: CreateNewEngagementVariables = {
   name: ..., 
   startDate: ..., 
   status: ..., 
+  createdAt: ..., 
 };
 
 // Call the `createNewEngagement()` function to execute the mutation.
 // You can use the `await` keyword to wait for the promise to resolve.
 const { data } = await createNewEngagement(createNewEngagementVars);
 // Variables can be defined inline as well.
-const { data } = await createNewEngagement({ clientName: ..., description: ..., endDate: ..., name: ..., startDate: ..., status: ..., });
+const { data } = await createNewEngagement({ clientName: ..., description: ..., endDate: ..., name: ..., startDate: ..., status: ..., createdAt: ..., });
 
 // You can also pass in a `DataConnect` instance to the action shortcut function.
 const dataConnect = getDataConnect(connectorConfig);
@@ -388,12 +390,13 @@ const createNewEngagementVars: CreateNewEngagementVariables = {
   name: ..., 
   startDate: ..., 
   status: ..., 
+  createdAt: ..., 
 };
 
 // Call the `createNewEngagementRef()` function to get a reference to the mutation.
 const ref = createNewEngagementRef(createNewEngagementVars);
 // Variables can be defined inline as well.
-const ref = createNewEngagementRef({ clientName: ..., description: ..., endDate: ..., name: ..., startDate: ..., status: ..., });
+const ref = createNewEngagementRef({ clientName: ..., description: ..., endDate: ..., name: ..., startDate: ..., status: ..., createdAt: ..., });
 
 // You can also pass in a `DataConnect` instance to the `MutationRef` function.
 const dataConnect = getDataConnect(connectorConfig);
@@ -450,6 +453,7 @@ export interface AssignUserToEngagementVariables {
   engagementId: UUIDString;
   assignmentDate: DateString;
   roleOnEngagement: string;
+  createdAt: TimestampString;
 }
 ```
 ### Return Type
@@ -473,13 +477,14 @@ const assignUserToEngagementVars: AssignUserToEngagementVariables = {
   engagementId: ..., 
   assignmentDate: ..., 
   roleOnEngagement: ..., 
+  createdAt: ..., 
 };
 
 // Call the `assignUserToEngagement()` function to execute the mutation.
 // You can use the `await` keyword to wait for the promise to resolve.
 const { data } = await assignUserToEngagement(assignUserToEngagementVars);
 // Variables can be defined inline as well.
-const { data } = await assignUserToEngagement({ userId: ..., engagementId: ..., assignmentDate: ..., roleOnEngagement: ..., });
+const { data } = await assignUserToEngagement({ userId: ..., engagementId: ..., assignmentDate: ..., roleOnEngagement: ..., createdAt: ..., });
 
 // You can also pass in a `DataConnect` instance to the action shortcut function.
 const dataConnect = getDataConnect(connectorConfig);
@@ -506,12 +511,13 @@ const assignUserToEngagementVars: AssignUserToEngagementVariables = {
   engagementId: ..., 
   assignmentDate: ..., 
   roleOnEngagement: ..., 
+  createdAt: ..., 
 };
 
 // Call the `assignUserToEngagementRef()` function to get a reference to the mutation.
 const ref = assignUserToEngagementRef(assignUserToEngagementVars);
 // Variables can be defined inline as well.
-const ref = assignUserToEngagementRef({ userId: ..., engagementId: ..., assignmentDate: ..., roleOnEngagement: ..., });
+const ref = assignUserToEngagementRef({ userId: ..., engagementId: ..., assignmentDate: ..., roleOnEngagement: ..., createdAt: ..., });
 
 // You can also pass in a `DataConnect` instance to the `MutationRef` function.
 const dataConnect = getDataConnect(connectorConfig);
