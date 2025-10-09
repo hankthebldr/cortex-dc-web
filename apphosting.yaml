@@ -8,16 +8,26 @@ runConfig:
   # memoryMiB: 512
 
 # Environment variables and secrets.
-# env:
-  # Configure environment variables.
-  # See https://firebase.google.com/docs/app-hosting/configure#user-defined-environment
-  # - variable: MESSAGE
-  #   value: Hello world!
-  #   availability:
-  #     - BUILD
-  #     - RUNTIME
+env:
+  # Used by Cloud Functions to report the active deployment environment.
+  - variable: APP_ENV
+    value: production
+    availability:
+      - RUNTIME
+
+  # Configurable message surfaced via the environmentSummary HTTPS function.
+  - variable: PUBLIC_HELLO_MESSAGE
+    value: Welcome to the Cortex Data Connect portal
+    availability:
+      - RUNTIME
+
+  # Build metadata injected into the runtime for observability.
+  - variable: APP_VERSION
+    value: "v1.0.0"
+    availability:
+      - RUNTIME
 
   # Grant access to secrets in Cloud Secret Manager.
-  # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
-  # - variable: MY_SECRET
-  #   secret: mySecretRef
+  # These values are referenced by the backend at runtime (not during build).
+  - variable: SERVICE_WEBHOOK_SECRET
+    secret: projects/cortex-dc-portal/secrets/service-webhook-secret/versions/latest

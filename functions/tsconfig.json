@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "nodenext",
     "esModuleInterop": true,
     "moduleResolution": "nodenext",
     "noImplicitReturns": true,
@@ -14,5 +14,9 @@
   "compileOnSave": true,
   "include": [
     "src"
+  ],
+  "exclude": [
+    "src/dataconnect-generated",
+    "src/genkit-sample.ts"
   ]
 }

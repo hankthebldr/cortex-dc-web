@@ -32,133 +32,70 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.healthCheck = exports.trackAnalytics = exports.createTRR = exports.createPOV = exports.generateAIResponse = void 0;
-const functions = __importStar(require("firebase-functions"));
-const admin = __importStar(require("firebase-admin"));
-const cors_1 = __importDefault(require("cors"));
-// Initialize Firebase Admin
-admin.initializeApp();
-// Initialize CORS
-const corsHandler = (0, cors_1.default)({ origin: true });
-// Example Vertex AI integration function
-exports.generateAIResponse = functions.https.onRequest((request, response) => {
-    corsHandler(request, response, async () => {
-        try {
-            const { prompt } = request.body;
-            if (!prompt) {
-                response.status(400).json({ error: 'Prompt is required' });
-                return;
-            }
-            // TODO: Integrate with Vertex AI
-            // For now, return a placeholder response
-            const aiResponse = `AI Response to: ${prompt}`;
-            response.json({ response: aiResponse });
-        }
-        catch (error) {
-            functions.logger.error('Error generating AI response:', error);
-            response.status(500).json({ error: 'Internal server error' });
-        }
-    });
+exports.environmentSummary = exports.echo = exports.healthCheck = void 0;
+const options_1 = require("firebase-functions/v2/options");
+const https_1 = require("firebase-functions/v2/https");
+const logger = __importStar(require("firebase-functions/logger"));
+(0, options_1.setGlobalOptions)({
+    region: "us-central1",
+    maxInstances: 10,
 });
-// Example POV management function
-exports.createPOV = functions.https.onRequest((request, response) => {
-    corsHandler(request, response, async () => {
-        try {
-            const { title, description, organizationId, userId } = request.body;
-            if (!title || !organizationId || !userId) {
-                response.status(400).json({ error: 'Required fields missing' });
-                return;
-            }
-            const povData = {
-                title,
-                description: description || '',
-                organizationId,
-                userId,
-                status: 'draft',
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            };
-            const docRef = await admin.firestore().collection('povs').add(povData);
-            response.json({
-                id: docRef.id,
-                message: 'POV created successfully',
-                data: povData
-            });
-        }
-        catch (error) {
-            functions.logger.error('Error creating POV:', error);
-            response.status(500).json({ error: 'Internal server error' });
-        }
-    });
-});
-// Example TRR management function  
-exports.createTRR = functions.https.onRequest((request, response) => {
-    corsHandler(request, response, async () => {
-        try {
-            const { title, description, povId, organizationId, userId, priority } = request.body;
-            if (!title || !povId || !organizationId || !userId) {
-                response.status(400).json({ error: 'Required fields missing' });
-                return;
-            }
-            const trrData = {
-                title,
-                description: description || '',
-                povId,
-                organizationId,
-                userId,
-                status: 'pending',
-                priority: priority || 'medium',
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            };
-            const docRef = await admin.firestore().collection('trrs').add(trrData);
-            response.json({
-                id: docRef.id,
-                message: 'TRR created successfully',
-                data: trrData
-            });
-        }
-        catch (error) {
-            functions.logger.error('Error creating TRR:', error);
-            response.status(500).json({ error: 'Internal server error' });
-        }
-    });
-});
-// Analytics function for tracking user interactions
-exports.trackAnalytics = functions.https.onRequest((request, response) => {
-    corsHandler(request, response, async () => {
-        try {
-            const { event, userId, organizationId, metadata } = request.body;
-            if (!event || !userId) {
-                response.status(400).json({ error: 'Event and userId are required' });
-                return;
-            }
-            const analyticsData = {
-                event,
-                userId,
-                organizationId: organizationId || null,
-                metadata: metadata || {},
-                timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            };
-            await admin.firestore().collection('analytics').add(analyticsData);
-            response.json({ message: 'Analytics tracked successfully' });
-        }
-        catch (error) {
-            functions.logger.error('Error tracking analytics:', error);
-            response.status(500).json({ error: 'Internal server error' });
-        }
-    });
-});
-// Health check function
-exports.healthCheck = functions.https.onRequest((request, response) => {
-    response.json({
-        status: 'healthy',
+const APP_VERSION = (_a = process.env.APP_VERSION) !== null && _a !== void 0 ? _a : "dev";
+const allowCors = (res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+};
+exports.healthCheck = (0, https_1.onRequest)((request, response) => {
+    allowCors(response);
+    const payload = {
+        status: "ok",
         timestamp: new Date().toISOString(),
-        version: '0.1.0'
-    });
+        version: APP_VERSION,
+    };
+    logger.debug("Health check ping", payload);
+    response.status(200).json(payload);
+});
+exports.echo = (0, https_1.onRequest)((request, response) => {
+    allowCors(response);
+    if (request.method === "OPTIONS") {
+        response.status(204).send("");
+        return;
+    }
+    if (request.method !== "POST") {
+        response.status(405).json({
+            error: "Method Not Allowed",
+            allowed: ["POST"],
+        });
+        return;
+    }
+    const payload = {
+        receivedAt: new Date().toISOString(),
+        method: request.method,
+        query: request.query,
+        body: request.body,
+    };
+    logger.info("Echo payload", payload);
+    response.status(200).json(payload);
+});
+exports.environmentSummary = (0, https_1.onRequest)((request, response) => {
+    var _a, _b;
+    allowCors(response);
+    if (request.method !== "GET") {
+        response.status(405).json({
+            error: "Method Not Allowed",
+            allowed: ["GET"],
+        });
+        return;
+    }
+    const payload = {
+        environment: (_a = process.env.APP_ENV) !== null && _a !== void 0 ? _a : "development",
+        message: (_b = process.env.PUBLIC_HELLO_MESSAGE) !== null && _b !== void 0 ? _b : "Welcome to Cortex Data Connect!",
+        version: APP_VERSION,
+    };
+    logger.info("Environment summary requested", payload);
+    response.status(200).json(payload);
 });
 //# sourceMappingURL=index.js.map
