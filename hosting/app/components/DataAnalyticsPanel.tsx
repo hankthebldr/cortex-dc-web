@@ -1,8 +1,11 @@
+<<<<<<< codex/design-modern-front-end-with-analytics-views-trezgi
 'use client';
 
 import { useMemo, useState } from 'react';
 import { ActionButton } from './ActionButton';
 
+=======
+>>>>>>> master
 interface Metric {
   label: string;
   value: string;
@@ -22,6 +25,7 @@ interface DataAnalyticsPanelProps {
 }
 
 export function DataAnalyticsPanel({ metrics, timeline }: DataAnalyticsPanelProps) {
+<<<<<<< codex/design-modern-front-end-with-analytics-views-trezgi
   const [activeTab, setActiveTab] = useState<'data' | 'analytics' | 'timeline'>('data');
 
   const analyticsInsights = useMemo(
@@ -36,12 +40,17 @@ export function DataAnalyticsPanel({ metrics, timeline }: DataAnalyticsPanelProp
 
   return (
     <article className="panel" aria-labelledby="data-analytics-title" id="data-analytics-panel">
+=======
+  return (
+    <article className="panel" aria-labelledby="data-analytics-title">
+>>>>>>> master
       <h2 id="data-analytics-title" className="panel__title">
         <span>DX</span>
         Data &amp; Analytics Workspace
       </h2>
 
       <div className="data-tabs" role="tablist" aria-label="Data views">
+<<<<<<< codex/design-modern-front-end-with-analytics-views-trezgi
         <ActionButton
           type="button"
           className={activeTab === 'data' ? 'active' : undefined}
@@ -122,6 +131,47 @@ export function DataAnalyticsPanel({ metrics, timeline }: DataAnalyticsPanelProp
           ))}
         </div>
       )}
+=======
+        <button type="button" className="active" role="tab" aria-selected="true">
+          Data
+        </button>
+        <button type="button" role="tab" aria-selected="false">
+          Analytics
+        </button>
+        <button type="button" role="tab" aria-selected="false" id="timeline">
+          Timeline
+        </button>
+      </div>
+
+      <div className="data-grid">
+        {metrics.map((metric) => (
+          <div key={metric.label} className="metric-card">
+            <span className="metric-card__label">{metric.label}</span>
+            <span className="metric-card__value">{metric.value}</span>
+            <span className="metric-card__trend">{metric.trend}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="timeline" aria-live="polite">
+        {timeline.map((event) => (
+          <div key={`${event.time}-${event.title}`} className="timeline-item">
+            <span className="timeline-item__time">{event.time}</span>
+            <div className="timeline-item__body">
+              <h4>{event.title}</h4>
+              <p>{event.description}</p>
+              <div className="timeline-item__tags">
+                {event.tags.map((tag) => (
+                  <span key={tag} className="timeline-item__tag">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+>>>>>>> master
     </article>
   );
 }

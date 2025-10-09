@@ -1,8 +1,4 @@
-'use client';
-
 import { Icon, type IconName } from './iconography';
-import { ActionLink } from './ActionLink';
-import { ActionButton } from './ActionButton';
 
 export type DashboardOption = {
   id: string;
@@ -35,13 +31,7 @@ export function GuidedDashboards({ options }: GuidedDashboardsProps) {
             next-best actions so teams can accelerate their investigations.
           </p>
         </div>
-        <ActionLink
-          className="btn-ghost"
-          href="/workspaces/trr-management#capabilities"
-          eventName="dashboard:browse"
-        >
-          Browse full library
-        </ActionLink>
+        <a className="btn-ghost" href="#capabilities">Browse full library</a>
       </header>
       <div className="guided-dashboards__grid">
         {options.map((option) => (
@@ -75,15 +65,10 @@ export function GuidedDashboards({ options }: GuidedDashboardsProps) {
             </section>
             <footer className="guided-dashboards__actions" aria-label="Next best actions">
               {option.nextBestActions.map((action) => (
-                <ActionButton
-                  key={action.label}
-                  type="button"
-                  eventName="dashboard:action"
-                  eventData={{ dashboardId: option.id, action: action.label }}
-                >
+                <button key={action.label} type="button">
                   <Icon name={action.icon} aria-hidden="true" />
                   <span>{action.label}</span>
-                </ActionButton>
+                </button>
               ))}
             </footer>
           </article>

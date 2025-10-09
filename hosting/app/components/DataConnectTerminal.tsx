@@ -1,8 +1,5 @@
-'use client';
-
 import type { IconName } from './iconography';
 import { Icon } from './iconography';
-import { ActionButton } from './ActionButton';
 
 export interface TerminalCommand {
   prompt: string;
@@ -82,17 +79,7 @@ export function DataConnectTerminal({
                       <p className="terminal__operation-description">{operation.description}</p>
                       <code>{operation.command}</code>
                     </div>
-                    <div className="terminal__operation-actions">
-                      <span className="terminal__operation-category">{operation.category}</span>
-                      <ActionButton
-                        type="button"
-                        className="terminal__operation-run"
-                        eventName="terminal:run-operation"
-                        eventData={{ operation: operation.name, command: operation.command }}
-                      >
-                        Run
-                      </ActionButton>
-                    </div>
+                    <span className="terminal__operation-category">{operation.category}</span>
                   </div>
                 </li>
               ))}
@@ -109,14 +96,6 @@ export function DataConnectTerminal({
                     <span className="pipeline__status">{pipeline.status}</span>
                   </div>
                   <p className="pipeline__sync">Last sync {pipeline.lastSync}</p>
-                  <ActionButton
-                    type="button"
-                    className="pipeline__cta"
-                    eventName="terminal:pipeline-action"
-                    eventData={{ pipelineId: pipeline.id, action: pipeline.status === 'paused' ? 'resume' : 'inspect' }}
-                  >
-                    {pipeline.status === 'paused' ? 'Resume' : 'Inspect'}
-                  </ActionButton>
                 </li>
               ))}
             </ul>
