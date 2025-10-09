@@ -1,6 +1,38 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { getClients, isUsingEmulators } from '../src/lib/firebase/client';
+import { observeAuthUser, type AuthUser } from '../src/lib/firebase/auth';
+
 export default function HomePage() {
+  const [firebaseReady, setFirebaseReady] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      // Initialize Firebase
+      const { app } = getClients();
+      setFirebaseReady(true);
+      console.log('🔥 Firebase initialized successfully');
+      
+      // Listen to auth changes
+      const unsubscribe = observeAuthUser((authUser) => {
+        setUser(authUser);
+        console.log('👤 Auth user:', authUser);
+      });
+      
+      return unsubscribe;
+    } catch (err) {
+      console.error('❌ Firebase initialization error:', err);
+      setError(err instanceof Error ? err.message : 'Firebase initialization failed');
+    }
+  }, []);
+
+  const usingEmulators = isUsingEmulators();
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50" data-testid="homepage-root">
       <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -19,11 +51,18 @@ export default function HomePage() {
               </p>
             </div>
             <div className="flex gap-3">
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-50 text-green-700 border border-green-200">
+              <span 
+                className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                  usingEmulators 
+                    ? 'bg-green-50 text-green-700 border border-green-200' 
+                    : 'bg-blue-50 text-blue-700 border border-blue-200'
+                }`}
+                data-testid="firebase-status-badge"
+              >
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Emulator Running
+                {usingEmulators ? 'Emulator Running' : 'Production Mode'}
               </span>
               <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-500 hover:bg-orange-600">
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -37,13 +76,25 @@ export default function HomePage() {
 
         {/* Status Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-blue-500">
+          <div 
+            className={`bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 ${
+              firebaseReady ? 'border-l-green-500' : 'border-l-red-500'
+            }`}
+            data-testid="firebase-status-card"
+          >
             <div className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Firebase Status</p>
-                  <p className="text-2xl font-bold text-gray-900">Ready</p>
-                  <p className="text-xs text-green-600">Emulators active</p>
+                  <p className="text-2xl font-bold text-gray-900" data-testid="firebase-status-text">
+                    {error ? 'Error' : firebaseReady ? 'Ready' : 'Loading'}
+                  </p>
+                  <p className={`text-xs ${
+                    error ? 'text-red-600' : 
+                    usingEmulators ? 'text-green-600' : 'text-blue-600'
+                  }`}>
+                    {error ? error : usingEmulators ? 'Emulators active' : 'Production mode'}
+                  </p>
                 </div>
                 <div className="bg-blue-50 p-3 rounded-lg">
                   <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

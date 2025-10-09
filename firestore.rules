@@ -1,18 +1,67 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2025, 11, 7);
+
+    // Helper functions to check user roles
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
+
+    function isUser() {
+      return getUserRole() == 'user';
+    }
+
+    function isManager() {
+      return getUserRole() == 'management';
+    }
+
+    function isAdmin() {
+      return getUserRole() == 'admin';
+    }
+
+    // Default deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- User Profile Rules ---
+    // Users can read their own profile, managers and admins can also read profiles.
+    // Users can update their own preferences.
+    // Only admins can create or delete users directly (creation is handled by Cloud Function).
+    match /users/{userId} {
+      allow read: if request.auth.uid == userId || isManager() || isAdmin();
+      allow update: if request.auth.uid == userId; // For user preferences
+      allow create, delete: if isAdmin();
+    }
+
+    // --- RBAC Rules for App Features ---
+    // NOTE: Replace the collection names (e.g., `pov_managment`) with your actual collection names.
+
+    // User, Manager, and Admin accessible collections
+    match /pov_managment/{docId=**} { allow read, write: if isUser() || isManager() || isAdmin(); }
+    match /trr_managment/{docId=**} { allow read, write: if isUser() || isManager() || isAdmin(); }
+    match /content_hub/{docId=**} { allow read, write: if isUser() || isManager() || isAdmin(); }
+    match /scenario_engine/{docId=**} { allow read, write: if isUser() || isManager() || isAdmin(); }
+    match /docs/{docId=**} { allow read, write: if isUser() || isManager() || isAdmin(); }
+    match /terminal_ui/{docId=**} { allow read, write: if isUser() || isManager() || isAdmin(); }
+    match /tac_escalation/{docId=**} { allow read, write: if isUser() || isManager() || isAdmin(); }
+
+    // User-specific collections
+    match /personal_dashboard/{userId}/{docId=**} {
+      allow read, write: if request.auth.uid == userId;
+    }
+
+    // Management and Admin accessible collections
+    match /team_dashboard/{docId=**} { allow read, write: if isManager() || isAdmin(); }
+    match /pov_dashboard/{docId=**} { allow read, write: if isManager() || isAdmin(); }
+    match /activity_dashboard/{docId=**} { allow read, write: if isManager() || isAdmin(); }
+    match /managment_settings/{docId=**} { allow read, write: if isManager() || isAdmin(); }
+
+    // Admin-only collections
+    match /admin_ui_data/{docId=**} { allow read, write: if isAdmin(); }
+    match /platform_settings/{docId=**} { allow read, write: if isAdmin(); }
+    match /analytics/{docId=**} { allow read, write: if isAdmin(); }
+    match /escalation_button_data/{docId=**} { allow read, write: if isAdmin(); }
   }
 }
