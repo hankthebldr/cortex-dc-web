@@ -34,6 +34,12 @@ const statusLabels: Record<TerminalCommand['status'], string> = {
   error: 'Attention required',
 };
 
+const pipelineStatusLabels: Record<DataPipeline['status'], string> = {
+  streaming: 'Streaming',
+  paused: 'Paused',
+  draft: 'Draft',
+};
+
 export function DataConnectTerminal({
   commands,
   operations,
@@ -53,17 +59,36 @@ export function DataConnectTerminal({
       </header>
 
       <div className="terminal__body">
-        <div className="terminal__screen" role="log" aria-live="polite">
-          {commands.map((entry) => (
-            <div key={entry.prompt} className={`terminal__line is-${entry.status}`}>
-              <div className="terminal__prompt">
-                <span className="terminal__caret">cortex@xsiam</span>
-                <span className="terminal__command">{entry.prompt}</span>
-              </div>
-              <pre className="terminal__response">{entry.response}</pre>
-              <span className="terminal__status">{statusLabels[entry.status]}</span>
+        <div className="terminal__screen">
+          <div className="terminal__toolbar" role="presentation" aria-hidden="true">
+            <div className="terminal__lights">
+              <span className="terminal__light is-red" />
+              <span className="terminal__light is-amber" />
+              <span className="terminal__light is-green" />
             </div>
-          ))}
+            <div className="terminal__toolbar-meta">
+              <span className="terminal__meta-context">workspace cortex/xsiam</span>
+              <span className="terminal__toolbar-divider" />
+              <span className="terminal__meta-context">profile prod</span>
+            </div>
+            <div className="terminal__toolbar-connection">
+              <span className="terminal__connection-dot" aria-hidden />
+              <span>Secure channel</span>
+            </div>
+          </div>
+
+          <div className="terminal__log" role="log" aria-live="polite">
+            {commands.map((entry) => (
+              <div key={entry.prompt} className={`terminal__line is-${entry.status}`}>
+                <div className="terminal__prompt">
+                  <span className="terminal__caret">cortex@xsiam</span>
+                  <span className="terminal__command">{entry.prompt}</span>
+                </div>
+                <pre className="terminal__response">{entry.response}</pre>
+                <span className="terminal__status">{statusLabels[entry.status]}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         <aside className="terminal__sidebar" aria-label="Data Connect operations">
@@ -93,7 +118,10 @@ export function DataConnectTerminal({
                 <li key={pipeline.id} className={`pipeline is-${pipeline.status}`}>
                   <div className="pipeline__meta">
                     <p className="pipeline__label">{pipeline.label}</p>
-                    <span className="pipeline__status">{pipeline.status}</span>
+                    <span className="pipeline__status">
+                      <span className="pipeline__status-dot" aria-hidden />
+                      {pipelineStatusLabels[pipeline.status]}
+                    </span>
                   </div>
                   <p className="pipeline__sync">Last sync {pipeline.lastSync}</p>
                 </li>
