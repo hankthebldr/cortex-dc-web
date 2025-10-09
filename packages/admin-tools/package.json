@@ -1,0 +1,15 @@
+{
+  "name": "@cortex/admin-tools",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "private": true,
+  "dependencies": {
+    "firebase-admin": "workspace:*",
+    "tsx": "^4.20.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.19",
+    "typescript": "^5.9.3"
+  }
+}

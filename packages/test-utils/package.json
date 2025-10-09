@@ -1,0 +1,16 @@
+{
+  "name": "@cortex/test-utils",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "private": true,
+  "dependencies": {
+    "firebase": "workspace:*",
+    "@playwright/test": "^1.56.0",
+    "playwright": "^1.56.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.19",
+    "typescript": "^5.9.3"
+  }
+}
