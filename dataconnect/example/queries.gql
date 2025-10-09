@@ -1,5 +1,5 @@
-mutation CreateNewEngagement($clientName: String, $description: String, $endDate: Date!, $name: String!, $startDate: Date!, $status: String!) @auth(level: USER) {
-  engagement_insert(data: {clientName: $clientName, description: $description, endDate: $endDate, name: $name, startDate: $startDate, status: $status})
+mutation CreateNewEngagement($clientName: String, $description: String, $endDate: Date!, $name: String!, $startDate: Date!, $status: String!, $createdAt: Timestamp!) @auth(level: USER) {
+  engagement_insert(data: {clientName: $clientName, description: $description, endDate: $endDate, name: $name, startDate: $startDate, status: $status, createdAt: $createdAt})
 }
 
 query ListEngagements @auth(level: USER) {
@@ -12,8 +12,8 @@ query ListEngagements @auth(level: USER) {
   }
 }
 
-mutation AssignUserToEngagement($userId: UUID!, $engagementId: UUID!, $assignmentDate: Date!, $roleOnEngagement: String!) @auth(level: USER) {
-  assignment_insert(data: {userId: $userId, engagementId: $engagementId, assignmentDate: $assignmentDate, roleOnEngagement: $roleOnEngagement})
+mutation AssignUserToEngagement($userId: UUID!, $engagementId: UUID!, $assignmentDate: Date!, $roleOnEngagement: String!, $createdAt: Timestamp!) @auth(level: USER) {
+  assignment_insert(data: {userId: $userId, engagementId: $engagementId, assignmentDate: $assignmentDate, roleOnEngagement: $roleOnEngagement, createdAt: $createdAt})
 }
 
 query ListResourceRequestsForUser($userId: UUID!) @auth(level: USER) {
@@ -26,4 +26,20 @@ query ListResourceRequestsForUser($userId: UUID!) @auth(level: USER) {
     quantity
     status
   }
+}
+
+mutation CreateUser($uid: String!, $email: String, $displayName: String, $role: String!, $photoUrl: String, $department: String, $providerIds: [String!], $createdAt: Timestamp!) @auth(level: USER) {
+  user_insert(data: {uid: $uid, email: $email, displayName: $displayName, role: $role, photoUrl: $photoUrl, department: $department, providerIds: $providerIds, createdAt: $createdAt})
+}
+
+mutation CreateTechnicalResource($name: String!, $type: String!, $availabilityStatus: String!, $description: String, $costPerUnit: Float, $createdAt: Timestamp!) @auth(level: USER) {
+  technicalResource_insert(data: {name: $name, type: $type, availabilityStatus: $availabilityStatus, description: $description, costPerUnit: $costPerUnit, createdAt: $createdAt})
+}
+
+mutation CreateResourceRequest($userId: UUID!, $technicalResourceId: UUID!, $requestDate: Date!, $neededByDate: Date!, $status: String!, $quantity: Int!, $justification: String, $approvalDate: Date, $createdAt: Timestamp!) @auth(level: USER) {
+  resourceRequest_insert(data: {userId: $userId, technicalResourceId: $technicalResourceId, requestDate: $requestDate, neededByDate: $neededByDate, status: $status, quantity: $quantity, justification: $justification, approvalDate: $approvalDate, createdAt: $createdAt})
+}
+
+mutation CreateActivityLog($userId: UUID!, $engagementId: UUID!, $activityDate: Date!, $description: String!, $hoursSpent: Float!, $notes: String, $createdAt: Timestamp!) @auth(level: USER) {
+  activityLog_insert(data: {userId: $userId, engagementId: $engagementId, activityDate: $activityDate, description: $description, hoursSpent: $hoursSpent, notes: $notes, createdAt: $createdAt})
 }
