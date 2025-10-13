@@ -1,3 +1,6 @@
+// API services (migrated from henryreed.ai)
+export * from './api';
+
 // Utility functions
 export { cn } from './cn';
 export { formatDate, formatRelativeTime } from './date';

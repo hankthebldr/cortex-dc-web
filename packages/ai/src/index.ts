@@ -1,3 +1,19 @@
+// Gemini AI Service (migrated from henryreed.ai)
+export {
+  GeminiAIService,
+  initializeGeminiService,
+  getGeminiService,
+  initializeGeminiWithFirebase,
+  createGeminiCloudFunction,
+} from './gemini-ai-service';
+
+export type {
+  GeminiRequest,
+  GeminiResponse,
+  AIInsight,
+  GeminiConfig,
+} from './gemini-ai-service';
+
 // AI Provider abstractions
 export { AIProvider } from './providers/base';
 export { VertexAIProvider } from './providers/vertex';

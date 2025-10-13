@@ -1,0 +1,19 @@
+{
+  "name": "@cortex/commands",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cortex/utils": "workspace:*",
+    "@cortex/db": "workspace:*",
+    "firebase": "^12.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
