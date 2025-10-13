@@ -25,7 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { Project, ProjectStatus, Priority } from '@cortex/db/types/projects';
+import { Project, ProjectStatus, Priority } from '@cortex/db';
 import { format, isAfter, differenceInDays } from 'date-fns';
 
 interface ProjectCardProps {

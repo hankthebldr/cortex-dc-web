@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { POVStatus, Priority, Project } from '@cortex/db/types/projects';
+import { POVStatus, Priority, Project } from '@cortex/db';
 
 interface POVCreationWizardProps {
   projects: Project[];

@@ -46,7 +46,7 @@
   },
   "packageManager": "pnpm@8.15.1",
   "dependencies": {
-    "firebase": "^12.3.0",
+    "firebase": "^12.4.0",
     "firebase-admin": "^13.5.0"
   }
 }

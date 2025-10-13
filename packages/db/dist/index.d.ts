@@ -1,6 +1,120 @@
-import { Firestore } from 'firebase/firestore';
 import { FirebaseApp } from 'firebase/app';
+import { Auth } from 'firebase/auth';
+import { Firestore } from 'firebase/firestore';
+import { FirebaseStorage } from 'firebase/storage';
 import { z } from 'zod';
+
+declare const isMockAuthMode: boolean;
+declare const useEmulator: boolean;
+/**
+ * Firebase Authentication instance
+ * Lazy-loaded via Proxy pattern for optimal performance
+ */
+declare const auth: Auth;
+/**
+ * Firebase Firestore instance
+ * Lazy-loaded via Proxy pattern for optimal performance
+ */
+declare const db: Firestore;
+/**
+ * Firebase Storage instance
+ * Lazy-loaded via Proxy pattern for optimal performance
+ */
+declare const storage: FirebaseStorage;
+/**
+ * Firebase App instance
+ * Lazy-loaded via Proxy pattern for optimal performance
+ */
+declare const firebaseApp: FirebaseApp;
+/**
+ * Get Firebase configuration (useful for debugging)
+ */
+declare function getFirebaseConfig(): {
+    projectId: string;
+    isMockMode: boolean;
+    useEmulator: boolean;
+    isConfigured: boolean;
+};
+/**
+ * Force reconnect emulators (useful for testing)
+ */
+declare function forceReconnectEmulators(): void;
+
+interface AuthUser {
+    id: string;
+    username: string;
+    email: string;
+    role: 'admin' | 'user' | 'viewer';
+    viewMode: 'admin' | 'user';
+    permissions: string[];
+    lastLogin: string;
+    authProvider: 'local' | 'okta' | 'firebase';
+}
+interface AuthCredentials {
+    username: string;
+    password: string;
+}
+interface AuthResult {
+    success: boolean;
+    user?: AuthUser;
+    error?: string;
+}
+declare class AuthService {
+    private readonly STORAGE_KEYS;
+    private readonly VALID_USERS;
+    /**
+     * Authenticate user with local credentials
+     * Supports: user1/paloalto1 and cortex/xsiam
+     * @param credentials - Username and password
+     * @returns Authentication result with user data or error
+     */
+    authenticate(credentials: AuthCredentials): Promise<AuthResult>;
+    /**
+     * Check if user is currently authenticated
+     * @returns True if user has valid session
+     */
+    isAuthenticated(): boolean;
+    /**
+     * Get current authenticated user
+     * @returns User object or null if not authenticated
+     */
+    getCurrentUser(): AuthUser | null;
+    /**
+     * Get current session ID
+     * @returns Session ID or null
+     */
+    getSessionId(): string | null;
+    /**
+     * Store authentication session
+     * @param user - Authenticated user data
+     */
+    private setSession;
+    /**
+     * Clear authentication session
+     */
+    clearSession(): void;
+    /**
+     * Logout user and clear session
+     */
+    logout(): Promise<void>;
+    /**
+     * Check if user has specific permission
+     * @param permission - Permission string to check
+     * @returns True if user has permission
+     */
+    hasPermission(permission: string): boolean;
+    /**
+     * Check if user has admin role
+     * @returns True if user is admin
+     */
+    isAdmin(): boolean;
+    /**
+     * Get user permissions
+     * @returns Array of permission strings
+     */
+    getUserPermissions(): string[];
+}
+declare const authService: AuthService;
 
 interface FirestoreConfig {
     app: FirebaseApp;
@@ -52,15 +166,15 @@ declare const UserSchema: z.ZodObject<{
     createdAt: z.ZodDate;
     updatedAt: z.ZodDate;
 }, "strip", z.ZodTypeAny, {
-    email: string;
     role: "admin" | "user";
+    email: string;
     id: string;
     name: string;
     createdAt: Date;
     updatedAt: Date;
 }, {
-    email: string;
     role: "admin" | "user";
+    email: string;
     id: string;
     name: string;
     createdAt: Date;
@@ -360,8 +474,8 @@ declare const UserProfileSchema: z.ZodObject<{
     updatedAt: z.ZodDate;
     lastLoginAt: z.ZodOptional<z.ZodDate>;
 }, "strip", z.ZodTypeAny, {
-    email: string;
     role: UserRole;
+    email: string;
     status: UserStatus;
     createdAt: Date;
     updatedAt: Date;
@@ -427,8 +541,8 @@ declare const UserProfileSchema: z.ZodObject<{
     title?: string | undefined;
     lastLoginAt?: Date | undefined;
 }, {
-    email: string;
     role: UserRole;
+    email: string;
     status: UserStatus;
     createdAt: Date;
     updatedAt: Date;
@@ -1574,4 +1688,4 @@ interface TransactionContext {
     rollback(): Promise<void>;
 }
 
-export { CHAT_COLLECTION, type ChatSchema, ChatValidationRules, type DatabaseClient, FirestoreClient, FirestoreQueries, type Note, NoteSchema, type POV, POVSchema, POVStatus, Priority, type Project, ProjectSchema, ProjectStatus, type QueryResult, ROLE_NAVIGATION, ROLE_PERMISSIONS, type TRR, TRRSchema, TRRStatus, type Task, TaskSchema, TaskStatus, type Team, TeamSchema, type TimelineEvent, TimelineEventSchema, type TransactionContext, USER_COLLECTION, type User, type UserProfile, UserProfileSchema, UserRole, UserSchema, UserStatus, UserValidationRules, calculatePOVProgress, calculateProjectHealth, canAccessRoute, getDefaultPermissions, getProjectTimeline, hasPermission };
+export { type AuthCredentials, type AuthResult, type AuthUser, CHAT_COLLECTION, type ChatSchema, ChatValidationRules, type DatabaseClient, FirestoreClient, FirestoreQueries, type Note, NoteSchema, type POV, POVSchema, POVStatus, Priority, type Project, ProjectSchema, ProjectStatus, type QueryResult, ROLE_NAVIGATION, ROLE_PERMISSIONS, type TRR, TRRSchema, TRRStatus, type Task, TaskSchema, TaskStatus, type Team, TeamSchema, type TimelineEvent, TimelineEventSchema, type TransactionContext, USER_COLLECTION, type User, type UserProfile, UserProfileSchema, UserRole, UserSchema, UserStatus, UserValidationRules, auth, authService, calculatePOVProgress, calculateProjectHealth, canAccessRoute, db, firebaseApp, forceReconnectEmulators, getDefaultPermissions, getFirebaseConfig, getProjectTimeline, hasPermission, isMockAuthMode, storage, useEmulator };

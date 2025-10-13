@@ -26,7 +26,15 @@
       "@cortex/ai": ["./packages/ai/src"],
       "@cortex/ai/*": ["./packages/ai/src/*"],
       "@cortex/utils": ["./packages/utils/src"],
-      "@cortex/utils/*": ["./packages/utils/src/*"]
+      "@cortex/utils/*": ["./packages/utils/src/*"],
+      "@cortex/content": ["./packages/content/src"],
+      "@cortex/content/*": ["./packages/content/src/*"],
+      "@cortex/commands": ["./packages/commands/src"],
+      "@cortex/commands/*": ["./packages/commands/src/*"],
+      "@cortex/integrations": ["./packages/integrations/src"],
+      "@cortex/integrations/*": ["./packages/integrations/src/*"],
+      "@cortex/terminal": ["./packages/terminal/src"],
+      "@cortex/terminal/*": ["./packages/terminal/src/*"]
     }
   },
   "include": [

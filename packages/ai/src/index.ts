@@ -14,6 +14,23 @@ export type {
   GeminiConfig,
 } from './gemini-ai-service';
 
+// AI Services (migrated from henryreed.ai)
+export * from './services';
+
+// Gemini Types
+export type {
+  GeminiArtifact,
+  GeminiFunctionRequest,
+  GeminiFunctionResponse,
+} from './types/gemini-types';
+
+// DC Workflow Types
+export type {
+  DCWorkflowContext,
+  DCRecommendation,
+  DCWorkflowSummary,
+} from './services/dc-ai-client';
+
 // AI Provider abstractions
 export { AIProvider } from './providers/base';
 export { VertexAIProvider } from './providers/vertex';

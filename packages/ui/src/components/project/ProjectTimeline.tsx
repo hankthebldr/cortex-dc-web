@@ -15,7 +15,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { TimelineEvent } from '@cortex/db/types/projects';
+import { TimelineEvent } from '@cortex/db';
 import { format, isToday, isYesterday, differenceInDays } from 'date-fns';
 
 interface ProjectTimelineProps {

@@ -1,62 +1,28 @@
-'use client';
-
 /**
- * BigQuery Data Export Service - Migrated from henryreed.ai
- *
- * Handles data collection, formatting, and export to GCP BigQuery via Cloud Functions.
- *
- * Features:
- * - Event tracking (commands, GUI interactions, POV/TRR actions, scenarios)
- * - Data sanitization (PII removal)
- * - Queued batch exports
- * - Analytics data collection
- * - Cloud Function integration
- * - Firebase Auth integration
+ * BigQuery Data Export Service
+ * Handles data collection, formatting, and export to GCP BigQuery via Cloud Functions
  */
 
-import type { ApiService } from '@cortex/utils';
+import { apiService } from './api-service';
 
-/**
- * BigQuery export configuration
- */
 export interface BigQueryExportConfig {
-  /** BigQuery dataset name */
   dataset: string;
-  /** BigQuery table name */
   table: string;
-  /** GCP project ID */
   projectId: string;
-  /** Cloud Function endpoint URL for BigQuery exports */
   cloudFunctionUrl: string;
-  /** Whether to include PII in exports (default: false) */
   includePII: boolean;
-  /** Time range for data collection */
   timeRange?: {
     start: string;
     end: string;
   };
 }
 
-/**
- * BigQuery row structure
- */
 export interface BigQueryRow {
-  /** Event timestamp */
   timestamp: string;
-  /** User session ID */
   session_id: string;
-  /** User identifier */
   user_id: string;
-  /** Type of event being tracked */
-  event_type:
-    | 'command_execution'
-    | 'pov_action'
-    | 'trr_update'
-    | 'scenario_deployment'
-    | 'gui_interaction';
-  /** Event-specific data */
+  event_type: 'command_execution' | 'pov_action' | 'trr_update' | 'scenario_deployment' | 'gui_interaction';
   event_data: Record<string, any>;
-  /** Metadata about the event context */
   metadata: {
     interface_type: 'gui' | 'terminal';
     client_info: Record<string, any>;
@@ -64,94 +30,58 @@ export interface BigQueryRow {
   };
 }
 
-/**
- * Result of a BigQuery export operation
- */
 export interface ExportResult {
-  /** Whether the export succeeded */
   success: boolean;
-  /** Number of records exported */
   recordsExported: number;
-  /** BigQuery job ID (if successful) */
   bigqueryJobId?: string;
-  /** Error message (if failed) */
   error?: string;
-  /** Export timestamp */
   timestamp: string;
 }
 
-/**
- * BigQuery Service Class
- *
- * Provides comprehensive analytics tracking and export functionality for
- * Cortex DC Portal usage data to Google BigQuery.
- */
-export class BigQueryService {
+class BigQueryService {
   private config: BigQueryExportConfig;
   private exportQueue: BigQueryRow[] = [];
   private sessionId: string;
-  private apiService: ApiService | null = null;
 
   constructor() {
     this.sessionId = this.generateSessionId();
     this.config = {
       dataset: 'cortex_dc_analytics',
       table: 'user_interactions',
-      projectId: process.env.NEXT_PUBLIC_GCP_PROJECT_ID || 'cortex-dc-portal',
-      cloudFunctionUrl:
-        process.env.NEXT_PUBLIC_BIGQUERY_FUNCTION_URL || '/api/export/bigquery',
+      projectId: process.env.NEXT_PUBLIC_GCP_PROJECT_ID || 'cortex-dc-project',
+      cloudFunctionUrl: process.env.NEXT_PUBLIC_BIGQUERY_FUNCTION_URL || '/api/export/bigquery',
       includePII: false, // Default to false for privacy
       timeRange: {
         start: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Last 24 hours
-        end: new Date().toISOString(),
-      },
+        end: new Date().toISOString()
+      }
     };
   }
 
-  /**
-   * Set API service instance for data collection
-   */
-  setApiService(apiService: ApiService): void {
-    this.apiService = apiService;
-  }
-
-  /**
-   * Generate a unique session ID
-   */
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
   }
 
-  /**
-   * Get current user identifier from session storage
-   */
   private getCurrentUser(): string {
     if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('cortex_dc_user') || 'anonymous';
+      return sessionStorage.getItem('dc_user') || 'anonymous';
     }
     return 'server';
   }
 
-  /**
-   * Sanitize data by removing sensitive information
-   *
-   * @param data - Data to sanitize
-   * @param includePII - Whether to include PII (default: false)
-   * @returns Sanitized data
-   */
   private sanitizeData(data: any, includePII: boolean = false): any {
     if (!includePII) {
       // Remove sensitive information
       const sanitized = { ...data };
       const sensitiveKeys = ['password', 'token', 'api_key', 'secret', 'email', 'phone'];
-
+      
       const recursiveSanitize = (obj: any): any => {
         if (typeof obj !== 'object' || obj === null) return obj;
-
+        
         const cleaned = Array.isArray(obj) ? [] : {};
         for (const [key, value] of Object.entries(obj)) {
           const lowercaseKey = key.toLowerCase();
-          if (sensitiveKeys.some((sensitive) => lowercaseKey.includes(sensitive))) {
+          if (sensitiveKeys.some(sensitive => lowercaseKey.includes(sensitive))) {
             (cleaned as any)[key] = '[REDACTED]';
           } else if (typeof value === 'object') {
             (cleaned as any)[key] = recursiveSanitize(value);
@@ -161,7 +91,7 @@ export class BigQueryService {
         }
         return cleaned;
       };
-
+      
       return recursiveSanitize(sanitized);
     }
     return data;
@@ -169,18 +99,8 @@ export class BigQueryService {
 
   /**
    * Track a command execution event
-   *
-   * @param command - Command name
-   * @param args - Command arguments
-   * @param output - Command output
-   * @param executionTime - Execution time in milliseconds
    */
-  trackCommandExecution(
-    command: string,
-    args: string[],
-    output: any,
-    executionTime: number
-  ): void {
+  trackCommandExecution(command: string, args: string[], output: any, executionTime: number): void {
     const row: BigQueryRow = {
       timestamp: new Date().toISOString(),
       session_id: this.sessionId,
@@ -189,26 +109,24 @@ export class BigQueryService {
       event_data: this.sanitizeData({
         command,
         args,
-        output_summary:
-          typeof output === 'string' ? output.substring(0, 500) : 'non-string-output',
+        output_summary: typeof output === 'string' ? output.substring(0, 500) : 'non-string-output',
         execution_time_ms: executionTime,
-        success: true,
+        success: true
       }),
       metadata: {
         interface_type: 'terminal',
         client_info: {
           user_agent: typeof window !== 'undefined' ? window.navigator.userAgent : 'server',
           timestamp: Date.now(),
-          url: typeof window !== 'undefined' ? window.location.href : 'server',
+          url: typeof window !== 'undefined' ? window.location.href : 'server'
         },
         performance_metrics: {
           execution_time_ms: executionTime,
-          memory_usage:
-            typeof window !== 'undefined' && (window as any).performance?.memory
-              ? (window as any).performance.memory.usedJSHeapSize
-              : null,
-        },
-      },
+          memory_usage: typeof window !== 'undefined' && (window as any).performance?.memory 
+            ? (window as any).performance.memory.usedJSHeapSize 
+            : null
+        }
+      }
     };
 
     this.exportQueue.push(row);
@@ -216,10 +134,6 @@ export class BigQueryService {
 
   /**
    * Track a GUI interaction event
-   *
-   * @param actionType - Type of action (e.g., "button_click", "form_submit")
-   * @param component - Component name
-   * @param data - Additional interaction data
    */
   trackGUIInteraction(actionType: string, component: string, data: any): void {
     const row: BigQueryRow = {
@@ -231,7 +145,7 @@ export class BigQueryService {
         action_type: actionType,
         component,
         interaction_data: data,
-        page: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
+        page: typeof window !== 'undefined' ? window.location.pathname : 'unknown'
       }),
       metadata: {
         interface_type: 'gui',
@@ -239,12 +153,11 @@ export class BigQueryService {
           user_agent: typeof window !== 'undefined' ? window.navigator.userAgent : 'server',
           timestamp: Date.now(),
           url: typeof window !== 'undefined' ? window.location.href : 'server',
-          viewport:
-            typeof window !== 'undefined'
-              ? { width: window.innerWidth, height: window.innerHeight }
-              : null,
-        },
-      },
+          viewport: typeof window !== 'undefined' 
+            ? { width: window.innerWidth, height: window.innerHeight } 
+            : null
+        }
+      }
     };
 
     this.exportQueue.push(row);
@@ -252,10 +165,6 @@ export class BigQueryService {
 
   /**
    * Track POV-related actions
-   *
-   * @param action - Action type (e.g., "created", "updated", "deleted")
-   * @param povId - POV identifier
-   * @param data - POV data
    */
   trackPOVAction(action: string, povId: string, data: any): void {
     const row: BigQueryRow = {
@@ -266,18 +175,15 @@ export class BigQueryService {
       event_data: this.sanitizeData({
         action,
         pov_id: povId,
-        pov_data: data,
+        pov_data: data
       }),
       metadata: {
-        interface_type:
-          typeof window !== 'undefined' && window.location.pathname.includes('gui')
-            ? 'gui'
-            : 'terminal',
+        interface_type: typeof window !== 'undefined' && window.location.pathname.includes('gui') ? 'gui' : 'terminal',
         client_info: {
           user_agent: typeof window !== 'undefined' ? window.navigator.userAgent : 'server',
-          timestamp: Date.now(),
-        },
-      },
+          timestamp: Date.now()
+        }
+      }
     };
 
     this.exportQueue.push(row);
@@ -285,23 +191,13 @@ export class BigQueryService {
 
   /**
    * Collect comprehensive analytics data from the application
-   *
-   * Fetches POV, TRR, and Scenario data from the API service
-   *
-   * @returns Array of BigQuery rows
    */
   async collectAnalyticsData(): Promise<BigQueryRow[]> {
     const rows: BigQueryRow[] = [...this.exportQueue];
 
-    // Early return if no API service configured
-    if (!this.apiService) {
-      console.warn('API service not configured, skipping analytics collection');
-      return rows;
-    }
-
     try {
       // Collect POV data
-      const povResponse = await this.apiService.getPOVs({ page: 1, limit: 100 });
+      const povResponse = await apiService.getPOVs({ page: 1, limit: 100 });
       if (povResponse.success && povResponse.data) {
         rows.push({
           timestamp: new Date().toISOString(),
@@ -311,26 +207,26 @@ export class BigQueryService {
           event_data: this.sanitizeData({
             action: 'bulk_export',
             total_povs: povResponse.data.length,
-            povs_summary: povResponse.data.map((pov: any) => ({
+            povs_summary: povResponse.data.map(pov => ({
               id: pov.id,
               status: pov.status,
               customer: pov.customer,
               created_at: pov.createdAt,
-              scenario_count: pov.scenarios?.length || 0,
-            })),
+              scenario_count: pov.scenarios.length
+            }))
           }),
           metadata: {
             interface_type: 'gui',
             client_info: {
               export_type: 'analytics_collection',
-              timestamp: Date.now(),
-            },
-          },
+              timestamp: Date.now()
+            }
+          }
         });
       }
 
       // Collect TRR data
-      const trrResponse = await this.apiService.getTRRs({ page: 1, limit: 100 });
+      const trrResponse = await apiService.getTRRs({ page: 1, limit: 100 });
       if (trrResponse.success && trrResponse.data) {
         rows.push({
           timestamp: new Date().toISOString(),
@@ -340,26 +236,26 @@ export class BigQueryService {
           event_data: this.sanitizeData({
             action: 'bulk_export',
             total_trrs: trrResponse.data.length,
-            trrs_summary: trrResponse.data.map((trr: any) => ({
+            trrs_summary: trrResponse.data.map(trr => ({
               id: trr.id,
               status: trr.status,
               priority: trr.priority,
               created_at: trr.createdAt,
-              has_blockchain_hash: !!trr.blockchain_hash,
-            })),
+              has_blockchain_hash: !!trr.blockchain_hash
+            }))
           }),
           metadata: {
             interface_type: 'gui',
             client_info: {
               export_type: 'analytics_collection',
-              timestamp: Date.now(),
-            },
-          },
+              timestamp: Date.now()
+            }
+          }
         });
       }
 
       // Collect Scenario data
-      const scenarioResponse = await this.apiService.getScenarios({ page: 1, limit: 100 });
+      const scenarioResponse = await apiService.getScenarios({ page: 1, limit: 100 });
       if (scenarioResponse.success && scenarioResponse.data) {
         rows.push({
           timestamp: new Date().toISOString(),
@@ -369,23 +265,24 @@ export class BigQueryService {
           event_data: this.sanitizeData({
             action: 'bulk_export',
             total_scenarios: scenarioResponse.data.length,
-            scenarios_summary: scenarioResponse.data.map((scenario: any) => ({
+            scenarios_summary: scenarioResponse.data.map(scenario => ({
               id: scenario.id,
               type: scenario.type,
               status: scenario.status,
               mitre_techniques: scenario.mitre_techniques,
-              cloud_providers: scenario.cloud_providers,
-            })),
+              cloud_providers: scenario.cloud_providers
+            }))
           }),
           metadata: {
             interface_type: 'gui',
             client_info: {
               export_type: 'analytics_collection',
-              timestamp: Date.now(),
-            },
-          },
+              timestamp: Date.now()
+            }
+          }
         });
       }
+
     } catch (error) {
       console.error('Error collecting analytics data:', error);
       // Add error event to export
@@ -396,15 +293,15 @@ export class BigQueryService {
         event_type: 'gui_interaction',
         event_data: {
           action: 'data_collection_error',
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error ? error.message : 'Unknown error'
         },
         metadata: {
           interface_type: 'gui',
           client_info: {
             timestamp: Date.now(),
-            error_context: 'analytics_collection',
-          },
-        },
+            error_context: 'analytics_collection'
+          }
+        }
       });
     }
 
@@ -413,19 +310,14 @@ export class BigQueryService {
 
   /**
    * Export data to BigQuery via Cloud Function
-   *
-   * @param options - Export options
-   * @returns Export result
    */
-  async exportToBigQuery(
-    options: {
-      includeQueuedData?: boolean;
-      collectFreshData?: boolean;
-      customConfig?: Partial<BigQueryExportConfig>;
-    } = {}
-  ): Promise<ExportResult> {
+  async exportToBigQuery(options: {
+    includeQueuedData?: boolean;
+    collectFreshData?: boolean;
+    customConfig?: Partial<BigQueryExportConfig>;
+  } = {}): Promise<ExportResult> {
     const { includeQueuedData = true, collectFreshData = true, customConfig = {} } = options;
-
+    
     const config = { ...this.config, ...customConfig };
     const dataToExport: BigQueryRow[] = [];
 
@@ -446,7 +338,7 @@ export class BigQueryService {
           success: false,
           recordsExported: 0,
           error: 'No data to export',
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         };
       }
 
@@ -460,8 +352,8 @@ export class BigQueryService {
           session_id: this.sessionId,
           user_id: this.getCurrentUser(),
           total_records: dataToExport.length,
-          time_range: config.timeRange,
-        },
+          time_range: config.timeRange
+        }
       };
 
       // Call Cloud Function
@@ -469,9 +361,9 @@ export class BigQueryService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${await this.getIdToken()}`, // For authentication
+          'Authorization': `Bearer ${await this.getIdToken()}` // For authentication
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       });
 
       const result = await response.json();
@@ -486,30 +378,29 @@ export class BigQueryService {
           success: true,
           recordsExported: dataToExport.length,
           bigqueryJobId: result.jobId,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         };
       } else {
         throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
       }
+
     } catch (error) {
       console.error('BigQuery export error:', error);
       return {
         success: false,
         recordsExported: 0,
         error: error instanceof Error ? error.message : 'Unknown export error',
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
 
   /**
-   * Get Firebase ID token for authentication
-   *
-   * Integrates with Firebase Auth to get user ID token
-   *
-   * @returns ID token or fallback token
+   * Get ID token for authentication (implement based on your auth system)
    */
   private async getIdToken(): Promise<string> {
+    // This should integrate with your Firebase Auth or other authentication system
+    // For now, return a placeholder
     if (typeof window !== 'undefined') {
       // Try to get Firebase ID token if available
       try {
@@ -522,22 +413,20 @@ export class BigQueryService {
         console.warn('Firebase auth not available for ID token');
       }
     }
-
-    // Fallback: return session token or placeholder
-    return sessionStorage.getItem('cortex_dc_auth_token') || 'anonymous-token';
+    
+    // Fallback: return session token or API key
+    return sessionStorage.getItem('dc_auth_token') || 'anonymous-token';
   }
 
   /**
    * Get current export queue status
-   *
-   * @returns Queue size and timestamp info
    */
   getQueueStatus(): { queueSize: number; oldestItem?: string; newestItem?: string } {
     const queue = this.exportQueue;
     return {
       queueSize: queue.length,
       oldestItem: queue.length > 0 ? queue[0].timestamp : undefined,
-      newestItem: queue.length > 0 ? queue[queue.length - 1].timestamp : undefined,
+      newestItem: queue.length > 0 ? queue[queue.length - 1].timestamp : undefined
     };
   }
 
@@ -550,8 +439,6 @@ export class BigQueryService {
 
   /**
    * Update export configuration
-   *
-   * @param newConfig - Partial configuration to merge
    */
   updateConfig(newConfig: Partial<BigQueryExportConfig>): void {
     this.config = { ...this.config, ...newConfig };
@@ -559,36 +446,23 @@ export class BigQueryService {
 
   /**
    * Get current configuration
-   *
-   * @returns Current export configuration
    */
   getConfig(): BigQueryExportConfig {
     return { ...this.config };
   }
 }
 
-/**
- * Singleton instance
- */
+// Singleton instance
 export const bigQueryService = new BigQueryService();
 
-/**
- * Export tracking helpers for easy integration
- */
-export const trackCommand = (
-  command: string,
-  args: string[],
-  output: any,
-  executionTime: number
-) => bigQueryService.trackCommandExecution(command, args, output, executionTime);
+// Export tracking helpers for easy integration
+export const trackCommand = (command: string, args: string[], output: any, executionTime: number) => 
+  bigQueryService.trackCommandExecution(command, args, output, executionTime);
 
-export const trackGUIAction = (actionType: string, component: string, data: any) =>
+export const trackGUIAction = (actionType: string, component: string, data: any) => 
   bigQueryService.trackGUIInteraction(actionType, component, data);
 
-export const trackPOV = (action: string, povId: string, data: any) =>
+export const trackPOV = (action: string, povId: string, data: any) => 
   bigQueryService.trackPOVAction(action, povId, data);
 
-/**
- * Default export
- */
 export default bigQueryService;

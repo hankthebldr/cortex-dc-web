@@ -1,129 +1,75 @@
-'use client';
-
 /**
- * XSIAM API Integration Service - Migrated from henryreed.ai
- *
+ * XSIAM API Integration Service
  * Handles secure storage and management of XSIAM tenant credentials
- * and provides programmatic access to tenant analytics and health data.
- *
- * Features:
- * - Encrypted credential storage
- * - Connection testing and validation
- * - Health monitoring
- * - Analytics data retrieval
- * - Custom query execution
- * - Tenant information access
+ * and provides programmatic access to tenant analytics and health data
  */
 
-/**
- * XSIAM tenant credentials
- */
 export interface XSIAMCredentials {
-  /** XSIAM tenant API base URL (e.g., https://api-tenant.xdr.us.paloaltonetworks.com) */
   apiAddress: string;
-  /** API authentication ID */
   apiId: string;
-  /** API authentication key */
   apiKey: string;
-  /** Optional tenant display name */
   tenantName?: string;
-  /** Tenant region (e.g., us, eu, apj) */
   region?: string;
-  /** ISO timestamp of last connection test */
   lastTested?: string;
-  /** Whether the credentials passed validation */
   isValid?: boolean;
 }
 
-/**
- * XSIAM tenant health status
- */
 export interface XSIAMHealthData {
-  /** Overall tenant health status */
   status: 'healthy' | 'degraded' | 'unhealthy';
-  /** Uptime percentage */
   uptime: number;
-  /** Last update timestamp */
   lastUpdate: string;
-  /** Component-level health status */
-  components: Array<{
+  components: {
     name: string;
     status: 'operational' | 'degraded' | 'outage';
     responseTime?: number;
-  }>;
-  /** Key metrics */
+  }[];
   metrics: {
     incidentsProcessed: number;
     alertsGenerated: number;
-    dataIngestionRate: number; // GB/hour
-    storageUsed: number; // Percentage
+    dataIngestionRate: number;
+    storageUsed: number;
     activeUsers: number;
   };
 }
 
-/**
- * XSIAM analytics data for a time range
- */
 export interface XSIAMAnalyticsData {
-  /** Time range (e.g., "7d", "30d", "90d") */
   timeRange: string;
-  /** Summary statistics */
   summary: {
     totalIncidents: number;
     resolvedIncidents: number;
-    averageResolutionTime: number; // hours
-    falsePositiveRate: number; // percentage
+    averageResolutionTime: number;
+    falsePositiveRate: number;
     criticalAlerts: number;
   };
-  /** Daily trends */
-  trends: Array<{
+  trends: {
     date: string;
     incidents: number;
     alerts: number;
-    responseTime: number; // hours
-  }>;
-  /** Top threats by count */
-  topThreats: Array<{
+    responseTime: number;
+  }[];
+  topThreats: {
     name: string;
     count: number;
     severity: 'low' | 'medium' | 'high' | 'critical';
-  }>;
-  /** MITRE ATT&CK detection coverage */
-  detectionCoverage: Array<{
+  }[];
+  detectionCoverage: {
     technique: string;
-    coverage: number; // percentage
+    coverage: number;
     lastSeen: string;
-  }>;
+  }[];
 }
 
-/**
- * XSIAM API response wrapper
- */
 export interface XSIAMAPIResponse<T = any> {
-  /** Whether the request succeeded */
   success: boolean;
-  /** Response data (if successful) */
   data?: T;
-  /** Error message (if failed) */
   error?: string;
-  /** Response timestamp */
   timestamp: string;
-  /** Unique request ID for tracking */
   requestId: string;
 }
 
-/**
- * XSIAM API Service Class
- *
- * Provides secure integration with Cortex XSIAM tenant API for:
- * - Credential management
- * - Health monitoring
- * - Analytics data retrieval
- * - Custom query execution
- */
-export class XSIAMAPIService {
-  private readonly STORAGE_KEY = 'cortex_dc_xsiam_credentials';
-  private readonly ENCRYPTION_KEY = 'cortex_dc_xsiam_encryption_key';
+class XSIAMAPIService {
+  private readonly STORAGE_KEY = 'xsiam_credentials';
+  private readonly ENCRYPTION_KEY = 'xsiam_encryption_key';
   private credentials: XSIAMCredentials | null = null;
 
   constructor() {
@@ -133,47 +79,35 @@ export class XSIAMAPIService {
   }
 
   /**
-   * Encrypt data for secure storage
-   *
-   * Uses base64 encoding with checksum for data integrity.
-   * In production, consider using Web Crypto API for stronger encryption.
-   *
-   * @param data - Data to encrypt
-   * @returns Encrypted string
+   * Store XSIAM credentials securely in localStorage with encryption
    */
   private encryptData(data: string): string {
+    // Simple encryption for demo - in production, use proper encryption
     try {
-      return btoa(
-        encodeURIComponent(
-          JSON.stringify({
-            data: btoa(data),
-            timestamp: Date.now(),
-            checksum: this.generateChecksum(data),
-          })
-        )
-      );
+      return btoa(encodeURIComponent(JSON.stringify({
+        data: btoa(data),
+        timestamp: Date.now(),
+        checksum: this.generateChecksum(data)
+      })));
     } catch (error) {
       console.error('Encryption failed:', error);
-      return btoa(data); // Fallback to simple base64
+      return btoa(data);
     }
   }
 
   /**
    * Decrypt stored credentials
-   *
-   * @param encryptedData - Encrypted data string
-   * @returns Decrypted data
    */
   private decryptData(encryptedData: string): string {
     try {
       const decoded = JSON.parse(decodeURIComponent(atob(encryptedData)));
       const data = atob(decoded.data);
-
+      
       // Verify checksum for data integrity
       if (decoded.checksum && decoded.checksum !== this.generateChecksum(data)) {
         throw new Error('Data integrity check failed');
       }
-
+      
       return data;
     } catch (error) {
       console.error('Decryption failed:', error);
@@ -182,28 +116,20 @@ export class XSIAMAPIService {
   }
 
   /**
-   * Generate simple checksum for data integrity validation
-   *
-   * @param data - Data to checksum
-   * @returns Checksum string
+   * Generate simple checksum for data integrity
    */
   private generateChecksum(data: string): string {
     let hash = 0;
     for (let i = 0; i < data.length; i++) {
       const char = data.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
+      hash = ((hash << 5) - hash) + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
     return hash.toString();
   }
 
   /**
-   * Store XSIAM credentials securely
-   *
-   * Validates and tests credentials before storing them.
-   *
-   * @param credentials - XSIAM credentials to store
-   * @throws Error if credentials are invalid or connection test fails
+   * Store credentials securely
    */
   async storeCredentials(credentials: XSIAMCredentials): Promise<void> {
     try {
@@ -231,12 +157,12 @@ export class XSIAMAPIService {
   }
 
   /**
-   * Load credentials from local storage
+   * Load credentials from storage
    */
   private loadCredentials(): void {
     try {
       if (typeof window === 'undefined') return;
-
+      
       const encrypted = localStorage.getItem(this.STORAGE_KEY);
       if (encrypted) {
         const decrypted = this.decryptData(encrypted);
@@ -250,8 +176,6 @@ export class XSIAMAPIService {
 
   /**
    * Get current credentials
-   *
-   * @returns Current credentials or null if not configured
    */
   getCredentials(): XSIAMCredentials | null {
     return this.credentials;
@@ -259,8 +183,6 @@ export class XSIAMAPIService {
 
   /**
    * Clear stored credentials
-   *
-   * Removes credentials from memory and local storage
    */
   clearCredentials(): void {
     if (typeof window !== 'undefined') {
@@ -271,8 +193,6 @@ export class XSIAMAPIService {
 
   /**
    * Check if credentials are configured
-   *
-   * @returns True if valid credentials exist
    */
   isConfigured(): boolean {
     return this.credentials !== null && this.validateCredentials(this.credentials);
@@ -280,9 +200,6 @@ export class XSIAMAPIService {
 
   /**
    * Validate credentials format
-   *
-   * @param credentials - Credentials to validate
-   * @returns True if credentials are valid
    */
   private validateCredentials(credentials: XSIAMCredentials): boolean {
     return !!(
@@ -298,11 +215,6 @@ export class XSIAMAPIService {
 
   /**
    * Test connection to XSIAM tenant
-   *
-   * Attempts to connect to the XSIAM API health endpoint
-   *
-   * @param credentials - Optional credentials to test (uses stored credentials if not provided)
-   * @returns True if connection successful
    */
   async testConnection(credentials?: XSIAMCredentials): Promise<boolean> {
     const creds = credentials || this.credentials;
@@ -321,14 +233,6 @@ export class XSIAMAPIService {
 
   /**
    * Make authenticated API request to XSIAM
-   *
-   * Handles authentication headers and request formatting
-   *
-   * @param credentials - XSIAM credentials
-   * @param endpoint - API endpoint path
-   * @param method - HTTP method
-   * @param body - Optional request body
-   * @returns API response
    */
   private async makeAPIRequest(
     credentials: XSIAMCredentials,
@@ -336,28 +240,28 @@ export class XSIAMAPIService {
     method: 'GET' | 'POST' = 'GET',
     body?: any
   ): Promise<XSIAMAPIResponse> {
-    const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     try {
-      // Generate authentication headers per XSIAM API spec
+      // Generate authentication headers
       const headers = {
         'Content-Type': 'application/json',
         'x-xdr-auth-id': credentials.apiId,
-        Authorization: credentials.apiKey,
+        'Authorization': credentials.apiKey,
         'x-xdr-timestamp': Date.now().toString(),
-        'x-xdr-nonce': Math.random().toString(36).substring(2, 17),
+        'x-xdr-nonce': Math.random().toString(36).substr(2, 15)
       };
 
       const url = `${credentials.apiAddress}${endpoint}`;
-
+      
       const requestOptions: RequestInit = {
         method,
         headers,
-        ...(body && { body: JSON.stringify(body) }),
+        ...(body && { body: JSON.stringify(body) })
       };
 
       console.log(`Making XSIAM API request: ${method} ${url}`);
-
+      
       const response = await fetch(url, requestOptions);
       const responseData = await response.json();
 
@@ -369,26 +273,22 @@ export class XSIAMAPIService {
         success: true,
         data: responseData,
         timestamp: new Date().toISOString(),
-        requestId,
+        requestId
       };
+
     } catch (error) {
       console.error('XSIAM API request failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown API error',
         timestamp: new Date().toISOString(),
-        requestId,
+        requestId
       };
     }
   }
 
   /**
    * Get tenant health data
-   *
-   * Retrieves current health status and metrics for the XSIAM tenant
-   *
-   * @returns Health data or null
-   * @throws Error if credentials not configured
    */
   async getHealthData(): Promise<XSIAMHealthData | null> {
     if (!this.credentials) {
@@ -406,29 +306,29 @@ export class XSIAMAPIService {
         throw new Error(response.error || 'Failed to fetch health data');
       }
 
-      // Transform API response to health data structure
-      // This is a mock structure - adapt based on actual XSIAM API response
-      const healthData: XSIAMHealthData = {
-        status: response.data?.status || 'healthy',
-        uptime: response.data?.uptime || 99.98,
+      // Mock response structure - adapt based on actual XSIAM API
+      const mockHealthData: XSIAMHealthData = {
+        status: 'healthy',
+        uptime: 99.98,
         lastUpdate: new Date().toISOString(),
-        components: response.data?.components || [
+        components: [
           { name: 'Data Ingestion', status: 'operational', responseTime: 120 },
           { name: 'Analytics Engine', status: 'operational', responseTime: 85 },
           { name: 'Alert Processing', status: 'operational', responseTime: 200 },
           { name: 'API Gateway', status: 'operational', responseTime: 50 },
-          { name: 'Storage', status: 'operational' },
+          { name: 'Storage', status: 'operational' }
         ],
         metrics: {
-          incidentsProcessed: response.data?.metrics?.incidents || 1247,
-          alertsGenerated: response.data?.metrics?.alerts || 3891,
-          dataIngestionRate: response.data?.metrics?.ingestionRate || 2.5, // GB/hour
-          storageUsed: response.data?.metrics?.storageUsed || 87.3, // Percentage
-          activeUsers: response.data?.metrics?.activeUsers || 23,
-        },
+          incidentsProcessed: response.data?.incidents || 1247,
+          alertsGenerated: response.data?.alerts || 3891,
+          dataIngestionRate: response.data?.ingestionRate || 2.5, // GB/hour
+          storageUsed: response.data?.storageUsed || 87.3, // Percentage
+          activeUsers: response.data?.activeUsers || 23
+        }
       };
 
-      return healthData;
+      return mockHealthData;
+
     } catch (error) {
       console.error('Failed to get health data:', error);
       throw error;
@@ -436,13 +336,7 @@ export class XSIAMAPIService {
   }
 
   /**
-   * Get tenant analytics data for a time range
-   *
-   * Retrieves incident statistics, trends, and threat intelligence
-   *
-   * @param timeRange - Time range (e.g., "7d", "30d", "90d")
-   * @returns Analytics data or null
-   * @throws Error if credentials not configured
+   * Get tenant analytics data
    */
   async getAnalyticsData(timeRange: string = '7d'): Promise<XSIAMAnalyticsData | null> {
     if (!this.credentials) {
@@ -460,52 +354,42 @@ export class XSIAMAPIService {
         throw new Error(response.error || 'Failed to fetch analytics data');
       }
 
-      // Transform API response to analytics data structure
-      // This is a mock structure - adapt based on actual XSIAM API response
-      const analyticsData: XSIAMAnalyticsData = {
+      // Mock response structure - adapt based on actual XSIAM API
+      const mockAnalyticsData: XSIAMAnalyticsData = {
         timeRange,
         summary: {
           totalIncidents: response.data?.summary?.totalIncidents || 156,
           resolvedIncidents: response.data?.summary?.resolvedIncidents || 142,
           averageResolutionTime: response.data?.summary?.avgResolutionTime || 4.2, // hours
           falsePositiveRate: response.data?.summary?.falsePositiveRate || 2.1, // percentage
-          criticalAlerts: response.data?.summary?.criticalAlerts || 8,
+          criticalAlerts: response.data?.summary?.criticalAlerts || 8
         },
-        trends:
-          response.data?.trends ||
-          this.generateMockTrends(timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90),
+        trends: response.data?.trends || [
+          { date: '2025-01-10', incidents: 23, alerts: 67, responseTime: 3.8 },
+          { date: '2025-01-11', incidents: 19, alerts: 52, responseTime: 4.1 },
+          { date: '2025-01-12', incidents: 31, alerts: 89, responseTime: 3.2 },
+          { date: '2025-01-13', incidents: 15, alerts: 41, responseTime: 5.1 },
+          { date: '2025-01-14', incidents: 27, alerts: 73, responseTime: 3.9 },
+          { date: '2025-01-15', incidents: 22, alerts: 58, responseTime: 4.5 },
+          { date: '2025-01-16', incidents: 19, alerts: 44, responseTime: 4.0 }
+        ],
         topThreats: response.data?.topThreats || [
           { name: 'Malicious PowerShell', count: 45, severity: 'high' },
           { name: 'Suspicious Network Activity', count: 32, severity: 'medium' },
           { name: 'Credential Stuffing', count: 28, severity: 'high' },
           { name: 'Lateral Movement', count: 15, severity: 'critical' },
-          { name: 'Data Exfiltration Attempt', count: 12, severity: 'critical' },
+          { name: 'Data Exfiltration Attempt', count: 12, severity: 'critical' }
         ],
         detectionCoverage: response.data?.coverage || [
-          {
-            technique: 'T1078 - Valid Accounts',
-            coverage: 85,
-            lastSeen: '2025-01-16T10:30:00Z',
-          },
-          {
-            technique: 'T1059 - Command Line Interface',
-            coverage: 92,
-            lastSeen: '2025-01-16T14:20:00Z',
-          },
-          {
-            technique: 'T1055 - Process Injection',
-            coverage: 78,
-            lastSeen: '2025-01-16T09:15:00Z',
-          },
-          {
-            technique: 'T1003 - Credential Dumping',
-            coverage: 95,
-            lastSeen: '2025-01-16T11:45:00Z',
-          },
-        ],
+          { technique: 'T1078 - Valid Accounts', coverage: 85, lastSeen: '2025-01-16T10:30:00Z' },
+          { technique: 'T1059 - Command Line Interface', coverage: 92, lastSeen: '2025-01-16T14:20:00Z' },
+          { technique: 'T1055 - Process Injection', coverage: 78, lastSeen: '2025-01-16T09:15:00Z' },
+          { technique: 'T1003 - Credential Dumping', coverage: 95, lastSeen: '2025-01-16T11:45:00Z' }
+        ]
       };
 
-      return analyticsData;
+      return mockAnalyticsData;
+
     } catch (error) {
       console.error('Failed to get analytics data:', error);
       throw error;
@@ -513,38 +397,7 @@ export class XSIAMAPIService {
   }
 
   /**
-   * Generate mock trend data for testing
-   */
-  private generateMockTrends(
-    days: number
-  ): Array<{ date: string; incidents: number; alerts: number; responseTime: number }> {
-    const trends = [];
-    const now = new Date();
-
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - i);
-
-      trends.push({
-        date: date.toISOString().split('T')[0],
-        incidents: Math.floor(Math.random() * 20) + 15,
-        alerts: Math.floor(Math.random() * 50) + 40,
-        responseTime: Math.random() * 2 + 3, // 3-5 hours
-      });
-    }
-
-    return trends;
-  }
-
-  /**
-   * Execute custom XQL query on XSIAM tenant
-   *
-   * Runs a custom query against the tenant's data lake
-   *
-   * @param query - XQL query string
-   * @param timeRange - Optional time range (default: "24h")
-   * @returns Query results
-   * @throws Error if credentials not configured or query fails
+   * Execute custom query on XSIAM tenant
    */
   async executeQuery(query: string, timeRange?: string): Promise<any> {
     if (!this.credentials) {
@@ -552,16 +405,22 @@ export class XSIAMAPIService {
     }
 
     try {
-      const response = await this.makeAPIRequest(this.credentials, '/public_api/v1/query', 'POST', {
-        query,
-        time_range: timeRange || '24h',
-      });
+      const response = await this.makeAPIRequest(
+        this.credentials,
+        '/public_api/v1/query',
+        'POST',
+        {
+          query,
+          time_range: timeRange || '24h'
+        }
+      );
 
       if (!response.success) {
         throw new Error(response.error || 'Query execution failed');
       }
 
       return response.data;
+
     } catch (error) {
       console.error('Failed to execute query:', error);
       throw error;
@@ -570,11 +429,6 @@ export class XSIAMAPIService {
 
   /**
    * Get tenant information
-   *
-   * Retrieves tenant configuration and metadata
-   *
-   * @returns Tenant information
-   * @throws Error if credentials not configured
    */
   async getTenantInfo(): Promise<any> {
     if (!this.credentials) {
@@ -582,13 +436,18 @@ export class XSIAMAPIService {
     }
 
     try {
-      const response = await this.makeAPIRequest(this.credentials, '/public_api/v1/tenant/info', 'GET');
+      const response = await this.makeAPIRequest(
+        this.credentials,
+        '/public_api/v1/tenant/info',
+        'GET'
+      );
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to get tenant info');
       }
 
       return response.data;
+
     } catch (error) {
       console.error('Failed to get tenant info:', error);
       throw error;
@@ -596,12 +455,6 @@ export class XSIAMAPIService {
   }
 }
 
-/**
- * Singleton instance for easy access
- */
+// Export singleton instance
 export const xsiamApiService = new XSIAMAPIService();
-
-/**
- * Default export
- */
 export default xsiamApiService;

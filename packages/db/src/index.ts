@@ -4,6 +4,9 @@ export * from './firebase-config';
 // Authentication services (migrated from henryreed.ai)
 export * from './auth';
 
+// Data and user management services (migrated from henryreed.ai)
+export * from './services';
+
 // Firestore client and utilities
 export { FirestoreClient } from './firestore/client';
 export { FirestoreQueries } from './firestore/queries';

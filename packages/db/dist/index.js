@@ -44,23 +44,336 @@ __export(index_exports, {
   UserSchema: () => UserSchema,
   UserStatus: () => UserStatus,
   UserValidationRules: () => UserValidationRules,
+  auth: () => auth,
+  authService: () => authService,
   calculatePOVProgress: () => calculatePOVProgress,
   calculateProjectHealth: () => calculateProjectHealth,
   canAccessRoute: () => canAccessRoute,
+  db: () => db,
+  firebaseApp: () => firebaseApp,
+  forceReconnectEmulators: () => forceReconnectEmulators,
   getDefaultPermissions: () => getDefaultPermissions,
+  getFirebaseConfig: () => getFirebaseConfig,
   getProjectTimeline: () => getProjectTimeline,
-  hasPermission: () => hasPermission
+  hasPermission: () => hasPermission,
+  isMockAuthMode: () => isMockAuthMode,
+  storage: () => storage,
+  useEmulator: () => useEmulator
 });
 module.exports = __toCommonJS(index_exports);
 
-// src/firestore/client.ts
+// src/firebase-config.ts
+var import_app = require("firebase/app");
+var import_auth = require("firebase/auth");
 var import_firestore = require("firebase/firestore");
+var import_storage = require("firebase/storage");
+var firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "cortex-dc-portal",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+};
+var isMockAuthMode = process.env.NEXT_PUBLIC_ENABLE_MOCK_AUTH === "true";
+var useEmulator = process.env.NEXT_PUBLIC_USE_EMULATOR === "true";
+function getFirebaseApp() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  if (isMockAuthMode || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
+    console.info("Running in mock auth mode or Firebase config missing. Using development auth.");
+    const mockConfig = {
+      apiKey: "mock-api-key",
+      authDomain: "cortex-dc-portal.firebaseapp.com",
+      projectId: "cortex-dc-portal",
+      storageBucket: "cortex-dc-portal.firebasestorage.app",
+      messagingSenderId: "317661350023",
+      appId: "1:317661350023:web:mock-app-id"
+    };
+    const apps2 = (0, import_app.getApps)();
+    return apps2.length === 0 ? (0, import_app.initializeApp)(mockConfig) : (0, import_app.getApp)();
+  }
+  const apps = (0, import_app.getApps)();
+  return apps.length === 0 ? (0, import_app.initializeApp)(firebaseConfig) : (0, import_app.getApp)();
+}
+var _auth = null;
+var _db = null;
+var _storage = null;
+var _app = null;
+var _emulatorsConnected = false;
+function connectEmulators() {
+  if (_emulatorsConnected || typeof window === "undefined") return;
+  if (useEmulator || isMockAuthMode) {
+    try {
+      if (_auth && process.env.NEXT_PUBLIC_AUTH_EMULATOR_HOST) {
+        const authHost = process.env.NEXT_PUBLIC_AUTH_EMULATOR_HOST;
+        (0, import_auth.connectAuthEmulator)(_auth, `http://${authHost}`, { disableWarnings: true });
+      }
+      if (_db) {
+        const firestoreHost = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST || "localhost";
+        const firestorePort = parseInt(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT || "8080");
+        (0, import_firestore.connectFirestoreEmulator)(_db, firestoreHost, firestorePort);
+      }
+      if (_storage) {
+        const storageHost = process.env.NEXT_PUBLIC_STORAGE_EMULATOR_HOST || "localhost";
+        const storagePort = parseInt(process.env.NEXT_PUBLIC_STORAGE_EMULATOR_PORT || "9199");
+        (0, import_storage.connectStorageEmulator)(_storage, storageHost, storagePort);
+      }
+      _emulatorsConnected = true;
+      console.info("\u2705 Connected to Firebase emulators");
+    } catch (error) {
+      console.warn("\u26A0\uFE0F  Failed to connect to emulators:", error);
+    }
+  }
+}
+var auth = new Proxy({}, {
+  get(target, prop) {
+    if (!_auth) {
+      const app = getFirebaseApp();
+      if (!app) {
+        console.warn("Firebase app not available, auth will be limited");
+        return null;
+      }
+      _auth = (0, import_auth.getAuth)(app);
+      connectEmulators();
+    }
+    return _auth[prop];
+  }
+});
+var db = new Proxy({}, {
+  get(target, prop) {
+    if (!_db) {
+      const app = getFirebaseApp();
+      if (!app) {
+        console.warn("Firebase app not available, database will be limited");
+        return null;
+      }
+      _db = (0, import_firestore.getFirestore)(app);
+      connectEmulators();
+    }
+    return _db[prop];
+  }
+});
+var storage = new Proxy({}, {
+  get(target, prop) {
+    if (!_storage) {
+      const app = getFirebaseApp();
+      if (!app) {
+        console.warn("Firebase app not available, storage will be limited");
+        return null;
+      }
+      _storage = (0, import_storage.getStorage)(app);
+      connectEmulators();
+    }
+    return _storage[prop];
+  }
+});
+var firebaseApp = new Proxy({}, {
+  get(target, prop) {
+    if (!_app) {
+      _app = getFirebaseApp();
+      if (!_app) {
+        throw new Error(
+          "Firebase is not properly configured. Please check your environment variables. Required: NEXT_PUBLIC_FIREBASE_PROJECT_ID"
+        );
+      }
+    }
+    return _app[prop];
+  }
+});
+function getFirebaseConfig() {
+  return {
+    projectId: firebaseConfig.projectId,
+    isMockMode: isMockAuthMode,
+    useEmulator,
+    isConfigured: !!firebaseConfig.apiKey && !!firebaseConfig.projectId
+  };
+}
+function forceReconnectEmulators() {
+  _emulatorsConnected = false;
+  connectEmulators();
+}
+
+// src/auth/auth-service.ts
+var AuthService = class {
+  constructor() {
+    this.STORAGE_KEYS = {
+      AUTHENTICATED: "cortex_dc_authenticated",
+      USER: "cortex_dc_user",
+      SESSION_ID: "cortex_dc_session_id"
+    };
+    // Valid credentials and corresponding user profiles
+    // TODO: Move to environment variables or secure backend
+    this.VALID_USERS = {
+      user1: {
+        password: "paloalto1",
+        profile: {
+          id: "user1-001",
+          username: "user1",
+          email: "user1@paloaltonetworks.com",
+          role: "user",
+          viewMode: "user",
+          permissions: ["scenario:execute", "pov:create", "trr:create"],
+          authProvider: "local"
+        }
+      },
+      cortex: {
+        password: "xsiam",
+        profile: {
+          id: "cortex-001",
+          username: "cortex",
+          email: "cortex@paloaltonetworks.com",
+          role: "admin",
+          viewMode: "admin",
+          permissions: [
+            "scenario:execute",
+            "pov:create",
+            "system:admin",
+            "trr:manage",
+            "user:manage"
+          ],
+          authProvider: "local"
+        }
+      }
+    };
+  }
+  /**
+   * Authenticate user with local credentials
+   * Supports: user1/paloalto1 and cortex/xsiam
+   * @param credentials - Username and password
+   * @returns Authentication result with user data or error
+   */
+  async authenticate(credentials) {
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      const userConfig = this.VALID_USERS[credentials.username];
+      if (userConfig && credentials.password === userConfig.password) {
+        const user = {
+          ...userConfig.profile,
+          lastLogin: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        this.setSession(user);
+        return {
+          success: true,
+          user
+        };
+      } else {
+        return {
+          success: false,
+          error: "Invalid credentials. Use user1/paloalto1 or cortex/xsiam."
+        };
+      }
+    } catch (error) {
+      console.error("Authentication error:", error);
+      return {
+        success: false,
+        error: "Authentication failed. Please try again."
+      };
+    }
+  }
+  /**
+   * Check if user is currently authenticated
+   * @returns True if user has valid session
+   */
+  isAuthenticated() {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem(this.STORAGE_KEYS.AUTHENTICATED) === "true";
+  }
+  /**
+   * Get current authenticated user
+   * @returns User object or null if not authenticated
+   */
+  getCurrentUser() {
+    if (typeof window === "undefined") return null;
+    try {
+      const userStr = sessionStorage.getItem(this.STORAGE_KEYS.USER);
+      if (!userStr) return null;
+      return JSON.parse(userStr);
+    } catch (error) {
+      console.warn("Failed to parse user from session:", error);
+      this.clearSession();
+      return null;
+    }
+  }
+  /**
+   * Get current session ID
+   * @returns Session ID or null
+   */
+  getSessionId() {
+    if (typeof window === "undefined") return null;
+    return sessionStorage.getItem(this.STORAGE_KEYS.SESSION_ID);
+  }
+  /**
+   * Store authentication session
+   * @param user - Authenticated user data
+   */
+  setSession(user) {
+    if (typeof window === "undefined") return;
+    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+    sessionStorage.setItem(this.STORAGE_KEYS.AUTHENTICATED, "true");
+    sessionStorage.setItem(this.STORAGE_KEYS.USER, JSON.stringify(user));
+    sessionStorage.setItem(this.STORAGE_KEYS.SESSION_ID, sessionId);
+  }
+  /**
+   * Clear authentication session
+   */
+  clearSession() {
+    if (typeof window === "undefined") return;
+    sessionStorage.removeItem(this.STORAGE_KEYS.AUTHENTICATED);
+    sessionStorage.removeItem(this.STORAGE_KEYS.USER);
+    sessionStorage.removeItem(this.STORAGE_KEYS.SESSION_ID);
+  }
+  /**
+   * Logout user and clear session
+   */
+  async logout() {
+    try {
+      this.clearSession();
+    } catch (error) {
+      console.error("Logout error:", error);
+      this.clearSession();
+    }
+  }
+  /**
+   * Check if user has specific permission
+   * @param permission - Permission string to check
+   * @returns True if user has permission
+   */
+  hasPermission(permission) {
+    const user = this.getCurrentUser();
+    if (!user) return false;
+    if (user.viewMode === "admin") return true;
+    return user.permissions.includes(permission);
+  }
+  /**
+   * Check if user has admin role
+   * @returns True if user is admin
+   */
+  isAdmin() {
+    const user = this.getCurrentUser();
+    return user?.role === "admin" || user?.viewMode === "admin";
+  }
+  /**
+   * Get user permissions
+   * @returns Array of permission strings
+   */
+  getUserPermissions() {
+    const user = this.getCurrentUser();
+    return user?.permissions || [];
+  }
+};
+var authService = new AuthService();
+
+// src/firestore/client.ts
+var import_firestore2 = require("firebase/firestore");
 var FirestoreClient = class {
   constructor(config) {
     this.config = config;
-    this.db = (0, import_firestore.getFirestore)(config.app);
+    this.db = (0, import_firestore2.getFirestore)(config.app);
     if (config.useEmulator && config.emulatorHost && config.emulatorPort) {
-      (0, import_firestore.connectFirestoreEmulator)(this.db, config.emulatorHost, config.emulatorPort);
+      (0, import_firestore2.connectFirestoreEmulator)(this.db, config.emulatorHost, config.emulatorPort);
     }
   }
   getDatabase() {
@@ -826,10 +1139,19 @@ var getProjectTimeline = (project, povs, trrs, tasks) => {
   UserSchema,
   UserStatus,
   UserValidationRules,
+  auth,
+  authService,
   calculatePOVProgress,
   calculateProjectHealth,
   canAccessRoute,
+  db,
+  firebaseApp,
+  forceReconnectEmulators,
   getDefaultPermissions,
+  getFirebaseConfig,
   getProjectTimeline,
-  hasPermission
+  hasPermission,
+  isMockAuthMode,
+  storage,
+  useEmulator
 });
