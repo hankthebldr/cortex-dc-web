@@ -192,5 +192,8 @@
     ],
     "alwaysDeployFromSource": true
   },
-  "extensions": {}
+  "extensions": {
+    "firestore-bigquery-export": "firebase/firestore-bigquery-export@0.2.6",
+    "firestore-multimodal-genai": "googlecloud/firestore-multimodal-genai@1.0.2"
+  }
 }
