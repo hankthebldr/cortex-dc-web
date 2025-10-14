@@ -1,0 +1,63 @@
+{{- if .Values.functions.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cortex-dc.fullname" . }}-functions
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "cortex-dc.labels" . | nindent 4 }}
+    {{- include "cortex-dc.functions.selectorLabels" . | nindent 4 }}
+spec:
+  {{- if not .Values.functions.autoscaling.enabled }}
+  replicas: {{ .Values.functions.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "cortex-dc.functions.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/functions-configmap.yaml") . | sha256sum }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+      labels:
+        {{- include "cortex-dc.functions.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "cortex-dc.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.functions.podSecurityContext | nindent 8 }}
+      containers:
+      - name: functions
+        securityContext:
+          {{- toYaml .Values.functions.securityContext | nindent 12 }}
+        image: "{{ .Values.functions.image.repository }}:{{ .Values.functions.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.functions.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.functions.service.targetPort }}
+          protocol: TCP
+        livenessProbe:
+          {{- toYaml .Values.functions.livenessProbe | nindent 12 }}
+        readinessProbe:
+          {{- toYaml .Values.functions.readinessProbe | nindent 12 }}
+        resources:
+          {{- toYaml .Values.functions.resources | nindent 12 }}
+        env:
+        {{- range .Values.functions.env }}
+        - name: {{ .name }}
+          value: {{ .value | quote }}
+        {{- end }}
+        {{- if .Values.functions.envFrom }}
+        envFrom:
+        {{- toYaml .Values.functions.envFrom | nindent 10 }}
+        {{- end }}
+{{- end }}

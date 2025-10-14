@@ -1,6 +1,5 @@
 // BigQuery Integration (migrated from henryreed.ai)
 export {
-  BigQueryService,
   bigQueryService,
   trackCommand,
   trackGUIAction,

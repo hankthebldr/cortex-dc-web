@@ -1,5 +1,6 @@
 // Firebase configuration and services (migrated from henryreed.ai)
 export * from './firebase-config';
+export { firebaseApp as app } from './firebase-config';
 
 // Authentication services (migrated from henryreed.ai)
 export * from './auth';
@@ -16,8 +17,9 @@ export * from './schemas/user';
 export * from './schemas/chat';
 
 // Types (includes the main POV and TRR schemas)
-export * from './types/auth';
-export * from './types/projects';
+// Note: Some types are re-exported from services to avoid ambiguity
+export type { UserProfile, UserRole, ROLE_PERMISSIONS } from './types/auth';
+export type { TimelineEvent } from './types/projects';
 export type {
   DatabaseClient,
   QueryResult,

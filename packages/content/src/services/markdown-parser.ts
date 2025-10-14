@@ -6,7 +6,7 @@
  * Migrated from henryreed.ai/hosting/lib/markdownParser.ts
  */
 
-import * as matter from 'gray-matter';
+import matter from 'gray-matter';
 
 export interface MarkdownMetadata {
   // Core fields extracted from frontmatter

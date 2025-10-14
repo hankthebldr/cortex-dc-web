@@ -24,41 +24,32 @@ __export(index_exports, {
   ChatValidationRules: () => ChatValidationRules,
   FirestoreClient: () => FirestoreClient,
   FirestoreQueries: () => FirestoreQueries,
-  NoteSchema: () => NoteSchema,
-  POVSchema: () => POVSchema,
-  POVStatus: () => POVStatus,
-  Priority: () => Priority,
-  ProjectSchema: () => ProjectSchema,
-  ProjectStatus: () => ProjectStatus,
-  ROLE_NAVIGATION: () => ROLE_NAVIGATION,
+  RBACMiddleware: () => RBACMiddleware,
   ROLE_PERMISSIONS: () => ROLE_PERMISSIONS,
-  TRRSchema: () => TRRSchema,
-  TRRStatus: () => TRRStatus,
-  TaskSchema: () => TaskSchema,
-  TaskStatus: () => TaskStatus,
-  TeamSchema: () => TeamSchema,
-  TimelineEventSchema: () => TimelineEventSchema,
   USER_COLLECTION: () => USER_COLLECTION,
-  UserProfileSchema: () => UserProfileSchema,
-  UserRole: () => UserRole,
+  UserManagementService: () => UserManagementService,
   UserSchema: () => UserSchema,
-  UserStatus: () => UserStatus,
   UserValidationRules: () => UserValidationRules,
+  app: () => firebaseApp,
   auth: () => auth,
   authService: () => authService,
-  calculatePOVProgress: () => calculatePOVProgress,
-  calculateProjectHealth: () => calculateProjectHealth,
-  canAccessRoute: () => canAccessRoute,
+  calculateAvgCycleDays: () => calculateAvgCycleDays,
+  calculateWinRate: () => calculateWinRate,
   db: () => db,
+  dcContextStore: () => dcContextStore,
+  fetchAnalytics: () => fetchAnalytics,
+  fetchBlueprintSummary: () => fetchBlueprintSummary,
+  fetchRegionEngagements: () => fetchRegionEngagements,
+  fetchUserEngagements: () => fetchUserEngagements,
   firebaseApp: () => firebaseApp,
   forceReconnectEmulators: () => forceReconnectEmulators,
-  getDefaultPermissions: () => getDefaultPermissions,
+  functions: () => functions,
   getFirebaseConfig: () => getFirebaseConfig,
-  getProjectTimeline: () => getProjectTimeline,
-  hasPermission: () => hasPermission,
   isMockAuthMode: () => isMockAuthMode,
   storage: () => storage,
-  useEmulator: () => useEmulator
+  useEmulator: () => useEmulator,
+  userActivityService: () => userActivityService,
+  userManagementService: () => userManagementService
 });
 module.exports = __toCommonJS(index_exports);
 
@@ -67,6 +58,7 @@ var import_app = require("firebase/app");
 var import_auth = require("firebase/auth");
 var import_firestore = require("firebase/firestore");
 var import_storage = require("firebase/storage");
+var import_functions = require("firebase/functions");
 var firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -101,6 +93,7 @@ function getFirebaseApp() {
 var _auth = null;
 var _db = null;
 var _storage = null;
+var _functions = null;
 var _app = null;
 var _emulatorsConnected = false;
 function connectEmulators() {
@@ -120,6 +113,11 @@ function connectEmulators() {
         const storageHost = process.env.NEXT_PUBLIC_STORAGE_EMULATOR_HOST || "localhost";
         const storagePort = parseInt(process.env.NEXT_PUBLIC_STORAGE_EMULATOR_PORT || "9199");
         (0, import_storage.connectStorageEmulator)(_storage, storageHost, storagePort);
+      }
+      if (_functions) {
+        const functionsHost = process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_HOST || "localhost";
+        const functionsPort = parseInt(process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_PORT || "5001");
+        (0, import_functions.connectFunctionsEmulator)(_functions, functionsHost, functionsPort);
       }
       _emulatorsConnected = true;
       console.info("\u2705 Connected to Firebase emulators");
@@ -168,6 +166,20 @@ var storage = new Proxy({}, {
       connectEmulators();
     }
     return _storage[prop];
+  }
+});
+var functions = new Proxy({}, {
+  get(target, prop) {
+    if (!_functions) {
+      const app = getFirebaseApp();
+      if (!app) {
+        console.warn("Firebase app not available, functions will be limited");
+        return null;
+      }
+      _functions = (0, import_functions.getFunctions)(app);
+      connectEmulators();
+    }
+    return _functions[prop];
   }
 });
 var firebaseApp = new Proxy({}, {
@@ -366,14 +378,1553 @@ var AuthService = class {
 };
 var authService = new AuthService();
 
-// src/firestore/client.ts
+// src/services/data-service.ts
 var import_firestore2 = require("firebase/firestore");
+async function fetchAnalytics(filters) {
+  const sinceDays = filters.sinceDays ?? 90;
+  const since = new Date(Date.now() - sinceDays * 864e5);
+  try {
+    const col = (0, import_firestore2.collection)(db, "dc_engagements");
+    const constraints = [];
+    constraints.push((0, import_firestore2.where)("createdAt", ">=", import_firestore2.Timestamp.fromDate(since)));
+    if (filters.region && filters.region !== "GLOBAL") {
+      constraints.push((0, import_firestore2.where)("region", "==", filters.region));
+    }
+    if (filters.theatre && filters.theatre !== "all") {
+      constraints.push((0, import_firestore2.where)("theatre", "==", filters.theatre));
+    }
+    if (filters.user && filters.user !== "all") {
+      constraints.push((0, import_firestore2.where)("user", "==", filters.user));
+    }
+    let q = (0, import_firestore2.query)(col, ...constraints);
+    let snap = await (0, import_firestore2.getDocs)(q);
+    if (snap.empty && constraints.length > 1) {
+      console.warn("Query with filters returned empty, falling back to date-only filter");
+      q = (0, import_firestore2.query)(col, (0, import_firestore2.where)("createdAt", ">=", import_firestore2.Timestamp.fromDate(since)));
+      snap = await (0, import_firestore2.getDocs)(q);
+    }
+    const records = snap.docs.map((d) => {
+      const v = d.data();
+      const createdAt = v.createdAt?.toDate ? v.createdAt.toDate() : new Date(v.createdAt || Date.now());
+      const completedAt = v.completedAt?.toDate ? v.completedAt.toDate() : v.completedAt ? new Date(v.completedAt) : null;
+      const cycleDays = v.cycleDays ?? (completedAt ? Math.max(0, Math.round((completedAt.getTime() - createdAt.getTime()) / 864e5)) : void 0);
+      return {
+        region: v.region || "UNKNOWN",
+        theatre: v.theatre || "UNKNOWN",
+        user: (v.user || "unknown").toLowerCase(),
+        location: v.location || "N/A",
+        customer: v.customer || "unknown",
+        createdAt,
+        completedAt,
+        scenariosExecuted: v.scenariosExecuted ?? 0,
+        detectionsValidated: v.detectionsValidated ?? 0,
+        trrOutcome: v.trrOutcome ?? null,
+        cycleDays
+      };
+    });
+    const okrSnap = await (0, import_firestore2.getDocs)((0, import_firestore2.collection)(db, "dc_okrs"));
+    const okrs = okrSnap.docs.map((d) => {
+      const v = d.data();
+      return {
+        id: d.id,
+        name: v.name || d.id,
+        progress: Number(v.progress ?? 0)
+      };
+    });
+    return {
+      records,
+      okrs,
+      source: records.length ? "firestore" : "empty"
+    };
+  } catch (e) {
+    console.error("Error fetching analytics:", e);
+    return { records: [], okrs: [], source: "mock" };
+  }
+}
+async function fetchBlueprintSummary(customer, sinceDays = 90) {
+  const since = new Date(Date.now() - sinceDays * 864e5);
+  try {
+    const col = (0, import_firestore2.collection)(db, "dc_engagements");
+    const q = (0, import_firestore2.query)(
+      col,
+      (0, import_firestore2.where)("customer", "==", customer),
+      (0, import_firestore2.where)("createdAt", ">=", import_firestore2.Timestamp.fromDate(since))
+    );
+    const snap = await (0, import_firestore2.getDocs)(q);
+    const records = snap.docs.map((d) => {
+      const v = d.data();
+      const createdAt = v.createdAt?.toDate ? v.createdAt.toDate() : new Date(v.createdAt || Date.now());
+      const completedAt = v.completedAt?.toDate ? v.completedAt.toDate() : v.completedAt ? new Date(v.completedAt) : null;
+      const cycleDays = v.cycleDays ?? (completedAt ? Math.max(0, Math.round((completedAt.getTime() - createdAt.getTime()) / 864e5)) : void 0);
+      return {
+        region: v.region || "UNKNOWN",
+        theatre: v.theatre || "UNKNOWN",
+        user: (v.user || "unknown").toLowerCase(),
+        location: v.location || "N/A",
+        customer: v.customer || "unknown",
+        createdAt,
+        completedAt,
+        scenariosExecuted: v.scenariosExecuted ?? 0,
+        detectionsValidated: v.detectionsValidated ?? 0,
+        trrOutcome: v.trrOutcome ?? null,
+        cycleDays
+      };
+    });
+    const sum = (a, b) => a + b;
+    const engagements = records.length;
+    const scenariosExecuted = records.map((r) => r.scenariosExecuted ?? 0).reduce(sum, 0);
+    const detectionsValidated = records.map((r) => r.detectionsValidated ?? 0).reduce(sum, 0);
+    const trrWins = records.filter((r) => r.trrOutcome === "win").length;
+    const trrLosses = records.filter((r) => r.trrOutcome === "loss").length;
+    const avgCycleDays = records.length ? Math.round(records.map((r) => r.cycleDays ?? 0).reduce(sum, 0) / records.length) : 0;
+    return {
+      engagements,
+      scenariosExecuted,
+      detectionsValidated,
+      trrWins,
+      trrLosses,
+      avgCycleDays,
+      source: engagements ? "firestore" : "empty"
+    };
+  } catch (e) {
+    console.error("Error fetching blueprint summary:", e);
+    return {
+      engagements: 0,
+      scenariosExecuted: 0,
+      detectionsValidated: 0,
+      trrWins: 0,
+      trrLosses: 0,
+      avgCycleDays: 0,
+      source: "mock"
+    };
+  }
+}
+async function fetchUserEngagements(userId, sinceDays = 90) {
+  const result = await fetchAnalytics({
+    user: userId,
+    sinceDays
+  });
+  return result.records;
+}
+async function fetchRegionEngagements(region, sinceDays = 90) {
+  const result = await fetchAnalytics({
+    region,
+    sinceDays
+  });
+  return result.records;
+}
+function calculateWinRate(records) {
+  const trrRecords = records.filter((r) => r.trrOutcome !== null);
+  if (trrRecords.length === 0) return 0;
+  const wins = trrRecords.filter((r) => r.trrOutcome === "win").length;
+  return Math.round(wins / trrRecords.length * 100);
+}
+function calculateAvgCycleDays(records) {
+  const withCycleDays = records.filter((r) => r.cycleDays !== void 0);
+  if (withCycleDays.length === 0) return 0;
+  const total = withCycleDays.reduce((sum, r) => sum + (r.cycleDays ?? 0), 0);
+  return Math.round(total / withCycleDays.length);
+}
+
+// src/services/user-management-service.ts
+var import_functions2 = require("firebase/functions");
+var import_firestore3 = require("firebase/firestore");
+var UserManagementService = class {
+  constructor() {
+    // Firebase Functions
+    this.createUserProfileFn = (0, import_functions2.httpsCallable)(functions, "createUserProfile");
+    this.updateUserProfileFn = (0, import_functions2.httpsCallable)(functions, "updateUserProfile");
+  }
+  // ============================================================================
+  // USER PROFILE OPERATIONS
+  // ============================================================================
+  /**
+   * Create a new user profile
+   */
+  async createUser(userData) {
+    try {
+      const result = await this.createUserProfileFn(userData);
+      return result.data;
+    } catch (error) {
+      console.error("Error creating user:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to create user"
+      };
+    }
+  }
+  /**
+   * Update user profile
+   */
+  async updateUser(updates) {
+    try {
+      const result = await this.updateUserProfileFn(updates);
+      return result.data;
+    } catch (error) {
+      console.error("Error updating user:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to update user"
+      };
+    }
+  }
+  /**
+   * Get user profile by UID
+   */
+  async getUserProfile(uid) {
+    try {
+      const userDoc = await (0, import_firestore3.getDoc)((0, import_firestore3.doc)(db, "users", uid));
+      if (userDoc.exists()) {
+        return { uid, ...userDoc.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      return null;
+    }
+  }
+  /**
+   * Get all users with optional filters
+   */
+  async getUsers(filters) {
+    try {
+      let q = (0, import_firestore3.query)((0, import_firestore3.collection)(db, "users"));
+      if (filters?.role) {
+        q = (0, import_firestore3.query)(q, (0, import_firestore3.where)("role", "==", filters.role));
+      }
+      if (filters?.status) {
+        q = (0, import_firestore3.query)(q, (0, import_firestore3.where)("status", "==", filters.status));
+      }
+      if (filters?.organizationId) {
+        q = (0, import_firestore3.query)(q, (0, import_firestore3.where)("organizationId", "==", filters.organizationId));
+      }
+      q = (0, import_firestore3.query)(q, (0, import_firestore3.orderBy)("metadata.createdAt", "desc"));
+      if (filters?.limit) {
+        q = (0, import_firestore3.query)(q, (0, import_firestore3.limit)(filters.limit));
+      }
+      const querySnapshot = await (0, import_firestore3.getDocs)(q);
+      return querySnapshot.docs.map((doc2) => ({
+        uid: doc2.id,
+        ...doc2.data()
+      }));
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      return [];
+    }
+  }
+  /**
+   * Subscribe to users collection changes
+   */
+  subscribeToUsers(callback, filters) {
+    let q = (0, import_firestore3.query)((0, import_firestore3.collection)(db, "users"));
+    if (filters?.role) {
+      q = (0, import_firestore3.query)(q, (0, import_firestore3.where)("role", "==", filters.role));
+    }
+    if (filters?.status) {
+      q = (0, import_firestore3.query)(q, (0, import_firestore3.where)("status", "==", filters.status));
+    }
+    if (filters?.organizationId) {
+      q = (0, import_firestore3.query)(q, (0, import_firestore3.where)("organizationId", "==", filters.organizationId));
+    }
+    q = (0, import_firestore3.query)(q, (0, import_firestore3.orderBy)("metadata.createdAt", "desc"));
+    if (filters?.limit) {
+      q = (0, import_firestore3.query)(q, (0, import_firestore3.limit)(filters.limit));
+    }
+    return (0, import_firestore3.onSnapshot)(q, (querySnapshot) => {
+      const users = querySnapshot.docs.map((doc2) => ({
+        uid: doc2.id,
+        ...doc2.data()
+      }));
+      callback(users);
+    });
+  }
+  // ============================================================================
+  // ACTIVITY TRACKING
+  // ============================================================================
+  /**
+   * Get user activity logs
+   */
+  async getUserActivity(userId, limitCount = 50) {
+    try {
+      let q = (0, import_firestore3.query)((0, import_firestore3.collection)(db, "activityLogs"));
+      if (userId) {
+        q = (0, import_firestore3.query)(q, (0, import_firestore3.where)("userId", "==", userId));
+      }
+      q = (0, import_firestore3.query)(q, (0, import_firestore3.orderBy)("timestamp", "desc"), (0, import_firestore3.limit)(limitCount));
+      const querySnapshot = await (0, import_firestore3.getDocs)(q);
+      return querySnapshot.docs.map((doc2) => ({
+        id: doc2.id,
+        ...doc2.data()
+      }));
+    } catch (error) {
+      console.error("Error fetching activity:", error);
+      return [];
+    }
+  }
+  /**
+   * Subscribe to activity logs
+   */
+  subscribeToActivity(callback, userId, limitCount = 50) {
+    let q = (0, import_firestore3.query)((0, import_firestore3.collection)(db, "activityLogs"));
+    if (userId) {
+      q = (0, import_firestore3.query)(q, (0, import_firestore3.where)("userId", "==", userId));
+    }
+    q = (0, import_firestore3.query)(q, (0, import_firestore3.orderBy)("timestamp", "desc"), (0, import_firestore3.limit)(limitCount));
+    return (0, import_firestore3.onSnapshot)(q, (querySnapshot) => {
+      const activities = querySnapshot.docs.map((doc2) => ({
+        id: doc2.id,
+        ...doc2.data()
+      }));
+      callback(activities);
+    });
+  }
+  /**
+   * Log user activity
+   */
+  async logActivity(activity) {
+    try {
+      await (0, import_firestore3.addDoc)((0, import_firestore3.collection)(db, "activityLogs"), {
+        ...activity,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+    } catch (error) {
+      console.error("Error logging activity:", error);
+    }
+  }
+  // ============================================================================
+  // USER SETTINGS
+  // ============================================================================
+  /**
+   * Get user settings
+   */
+  async getUserSettings(userId) {
+    try {
+      const settingsDoc = await (0, import_firestore3.getDoc)((0, import_firestore3.doc)(db, "userSettings", userId));
+      if (settingsDoc.exists()) {
+        return settingsDoc.data();
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching user settings:", error);
+      return null;
+    }
+  }
+  /**
+   * Update user settings
+   */
+  async updateUserSettings(userId, settings) {
+    try {
+      await (0, import_firestore3.updateDoc)((0, import_firestore3.doc)(db, "userSettings", userId), settings);
+      return true;
+    } catch (error) {
+      console.error("Error updating user settings:", error);
+      return false;
+    }
+  }
+  // ============================================================================
+  // ORGANIZATION MANAGEMENT
+  // ============================================================================
+  /**
+   * Get organization members
+   */
+  async getOrganizationMembers(organizationId) {
+    return this.getUsers({ organizationId });
+  }
+  /**
+   * Add user to organization
+   */
+  async addUserToOrganization(userId, organizationId) {
+    try {
+      await (0, import_firestore3.updateDoc)((0, import_firestore3.doc)(db, "users", userId), {
+        organizationId,
+        "metadata.lastModified": /* @__PURE__ */ new Date()
+      });
+      const orgRef = (0, import_firestore3.doc)(db, "organizations", organizationId);
+      const orgDoc = await (0, import_firestore3.getDoc)(orgRef);
+      if (orgDoc.exists()) {
+        const currentMembers = orgDoc.data().members || [];
+        if (!currentMembers.includes(userId)) {
+          await (0, import_firestore3.updateDoc)(orgRef, {
+            members: [...currentMembers, userId],
+            memberCount: currentMembers.length + 1,
+            lastUpdated: /* @__PURE__ */ new Date()
+          });
+        }
+      }
+      return true;
+    } catch (error) {
+      console.error("Error adding user to organization:", error);
+      return false;
+    }
+  }
+  /**
+   * Remove user from organization
+   */
+  async removeUserFromOrganization(userId, organizationId) {
+    try {
+      await (0, import_firestore3.updateDoc)((0, import_firestore3.doc)(db, "users", userId), {
+        organizationId: null,
+        "metadata.lastModified": /* @__PURE__ */ new Date()
+      });
+      const orgRef = (0, import_firestore3.doc)(db, "organizations", organizationId);
+      const orgDoc = await (0, import_firestore3.getDoc)(orgRef);
+      if (orgDoc.exists()) {
+        const currentMembers = orgDoc.data().members || [];
+        const updatedMembers = currentMembers.filter((id) => id !== userId);
+        await (0, import_firestore3.updateDoc)(orgRef, {
+          members: updatedMembers,
+          memberCount: updatedMembers.length,
+          lastUpdated: /* @__PURE__ */ new Date()
+        });
+      }
+      return true;
+    } catch (error) {
+      console.error("Error removing user from organization:", error);
+      return false;
+    }
+  }
+  // ============================================================================
+  // NOTIFICATIONS
+  // ============================================================================
+  /**
+   * Get user notifications
+   */
+  async getUserNotifications(userId, limitCount = 20) {
+    try {
+      const q = (0, import_firestore3.query)(
+        (0, import_firestore3.collection)(db, "notifications"),
+        (0, import_firestore3.where)("userId", "==", userId),
+        (0, import_firestore3.orderBy)("createdAt", "desc"),
+        (0, import_firestore3.limit)(limitCount)
+      );
+      const querySnapshot = await (0, import_firestore3.getDocs)(q);
+      return querySnapshot.docs.map((doc2) => ({
+        id: doc2.id,
+        ...doc2.data()
+      }));
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      return [];
+    }
+  }
+  /**
+   * Mark notification as read
+   */
+  async markNotificationRead(notificationId) {
+    try {
+      await (0, import_firestore3.updateDoc)((0, import_firestore3.doc)(db, "notifications", notificationId), {
+        read: true,
+        readAt: /* @__PURE__ */ new Date()
+      });
+      return true;
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      return false;
+    }
+  }
+  /**
+   * Create notification
+   */
+  async createNotification(notification) {
+    try {
+      await (0, import_firestore3.addDoc)((0, import_firestore3.collection)(db, "notifications"), {
+        ...notification,
+        read: false,
+        createdAt: /* @__PURE__ */ new Date()
+      });
+      return true;
+    } catch (error) {
+      console.error("Error creating notification:", error);
+      return false;
+    }
+  }
+  // ============================================================================
+  // ANALYTICS & REPORTING
+  // ============================================================================
+  /**
+   * Get user statistics
+   */
+  async getUserStats() {
+    try {
+      const users = await this.getUsers();
+      const weekAgo = /* @__PURE__ */ new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const stats = {
+        totalUsers: users.length,
+        activeUsers: users.filter((u) => u.status === "active").length,
+        newUsersThisWeek: users.filter(
+          (u) => u.metadata.createdAt && new Date(u.metadata.createdAt.seconds * 1e3) > weekAgo
+        ).length,
+        usersByRole: {},
+        usersByStatus: {}
+      };
+      users.forEach((user) => {
+        stats.usersByRole[user.role] = (stats.usersByRole[user.role] || 0) + 1;
+        stats.usersByStatus[user.status] = (stats.usersByStatus[user.status] || 0) + 1;
+      });
+      return stats;
+    } catch (error) {
+      console.error("Error fetching user stats:", error);
+      return {
+        totalUsers: 0,
+        activeUsers: 0,
+        newUsersThisWeek: 0,
+        usersByRole: {},
+        usersByStatus: {}
+      };
+    }
+  }
+  // ============================================================================
+  // BULK OPERATIONS
+  // ============================================================================
+  /**
+   * Bulk update users
+   */
+  async bulkUpdateUsers(userIds, updates) {
+    let success = 0;
+    let failed = 0;
+    for (const userId of userIds) {
+      try {
+        await (0, import_firestore3.updateDoc)((0, import_firestore3.doc)(db, "users", userId), {
+          ...updates,
+          "metadata.lastModified": /* @__PURE__ */ new Date()
+        });
+        success++;
+      } catch (error) {
+        console.error(`Error updating user ${userId}:`, error);
+        failed++;
+      }
+    }
+    return { success, failed };
+  }
+  /**
+   * Export users data
+   */
+  async exportUsers(filters) {
+    return this.getUsers(filters);
+  }
+};
+var userManagementService = new UserManagementService();
+
+// src/services/user-activity-service.ts
+var STORAGE_KEYS = {
+  NOTES: "user_notes",
+  MEETINGS: "user_meetings",
+  TIMELINE: "user_timeline",
+  PREFERENCES: "user_preferences",
+  ACTIVITY: "user_activity",
+  ACTION_ITEMS: "action_items"
+};
+var UserActivityService = class {
+  constructor() {
+    this.currentUser = "current-user@company.com";
+    this.sessionId = Date.now().toString();
+  }
+  // Notes Management
+  async createNote(note) {
+    const newNote = {
+      ...note,
+      id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      author: this.currentUser
+    };
+    const notes = this.getNotes();
+    notes.push(newNote);
+    this.saveNotes(notes);
+    this.addTimelineEvent({
+      type: "note",
+      title: "Note Created",
+      description: `Created note: ${note.title}`,
+      associatedId: newNote.id,
+      metadata: { noteType: note.type, tags: note.tags },
+      priority: "low",
+      category: note.type === "customer" ? "customer" : "administrative"
+    });
+    return newNote;
+  }
+  async updateNote(noteId, updates) {
+    const notes = this.getNotes();
+    const noteIndex = notes.findIndex((note) => note.id === noteId);
+    if (noteIndex === -1) return null;
+    const updatedNote = {
+      ...notes[noteIndex],
+      ...updates,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    notes[noteIndex] = updatedNote;
+    this.saveNotes(notes);
+    return updatedNote;
+  }
+  getNotes(filters) {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem(STORAGE_KEYS.NOTES);
+    let notes = stored ? JSON.parse(stored) : [];
+    if (filters) {
+      if (filters.type) {
+        notes = notes.filter((note) => note.type === filters.type);
+      }
+      if (filters.tags?.length) {
+        notes = notes.filter(
+          (note) => filters.tags.some((tag) => note.tags.includes(tag))
+        );
+      }
+      if (filters.pinned !== void 0) {
+        notes = notes.filter((note) => note.pinned === filters.pinned);
+      }
+      if (filters.archived !== void 0) {
+        notes = notes.filter((note) => note.archived === filters.archived);
+      }
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
+        notes = notes.filter(
+          (note) => note.title.toLowerCase().includes(searchLower) || note.content.toLowerCase().includes(searchLower)
+        );
+      }
+    }
+    return notes.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+  }
+  async deleteNote(noteId) {
+    const notes = this.getNotes();
+    const filteredNotes = notes.filter((note) => note.id !== noteId);
+    if (filteredNotes.length === notes.length) return false;
+    this.saveNotes(filteredNotes);
+    return true;
+  }
+  saveNotes(notes) {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.NOTES, JSON.stringify(notes));
+    }
+  }
+  // Meeting Management
+  async scheduleMeeting(meeting) {
+    const newMeeting = {
+      ...meeting,
+      id: `meeting-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      status: "scheduled",
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    const meetings = this.getMeetings();
+    meetings.push(newMeeting);
+    this.saveMeetings(meetings);
+    this.addTimelineEvent({
+      type: "meeting",
+      title: "Meeting Scheduled",
+      description: `${meeting.type} meeting: ${meeting.title}`,
+      associatedId: newMeeting.id,
+      metadata: { meetingType: meeting.type, participants: meeting.participants },
+      priority: "medium",
+      category: meeting.type === "customer" ? "customer" : "administrative"
+    });
+    return newMeeting;
+  }
+  async updateMeeting(meetingId, updates) {
+    const meetings = this.getMeetings();
+    const meetingIndex = meetings.findIndex((meeting) => meeting.id === meetingId);
+    if (meetingIndex === -1) return null;
+    const updatedMeeting = {
+      ...meetings[meetingIndex],
+      ...updates,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    meetings[meetingIndex] = updatedMeeting;
+    this.saveMeetings(meetings);
+    return updatedMeeting;
+  }
+  getMeetings(filters) {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem(STORAGE_KEYS.MEETINGS);
+    let meetings = stored ? JSON.parse(stored) : [];
+    if (filters) {
+      if (filters.type) {
+        meetings = meetings.filter((meeting) => meeting.type === filters.type);
+      }
+      if (filters.status) {
+        meetings = meetings.filter((meeting) => meeting.status === filters.status);
+      }
+      if (filters.dateRange) {
+        const start = new Date(filters.dateRange.start);
+        const end = new Date(filters.dateRange.end);
+        meetings = meetings.filter((meeting) => {
+          const meetingDate = new Date(meeting.scheduledAt);
+          return meetingDate >= start && meetingDate <= end;
+        });
+      }
+      if (filters.relatedPOV) {
+        meetings = meetings.filter((meeting) => meeting.relatedPOV === filters.relatedPOV);
+      }
+    }
+    return meetings.sort(
+      (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+    );
+  }
+  saveMeetings(meetings) {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.MEETINGS, JSON.stringify(meetings));
+    }
+  }
+  // Action Items Management
+  async createActionItem(item) {
+    const newItem = {
+      ...item,
+      id: `action-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    const items = this.getActionItems();
+    items.push(newItem);
+    this.saveActionItems(items);
+    return newItem;
+  }
+  async updateActionItem(itemId, updates) {
+    const items = this.getActionItems();
+    const itemIndex = items.findIndex((item) => item.id === itemId);
+    if (itemIndex === -1) return null;
+    const updatedItem = {
+      ...items[itemIndex],
+      ...updates,
+      ...updates.status === "done" && { completedAt: (/* @__PURE__ */ new Date()).toISOString() }
+    };
+    items[itemIndex] = updatedItem;
+    this.saveActionItems(items);
+    if (updates.status === "done") {
+      this.addTimelineEvent({
+        type: "action-item",
+        title: "Action Item Completed",
+        description: `Completed: ${updatedItem.description}`,
+        associatedId: itemId,
+        metadata: { priority: updatedItem.priority, assignee: updatedItem.assignee },
+        priority: "medium",
+        category: "administrative"
+      });
+    }
+    return updatedItem;
+  }
+  getActionItems(filters) {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem(STORAGE_KEYS.ACTION_ITEMS);
+    let items = stored ? JSON.parse(stored) : [];
+    if (filters) {
+      if (filters.status) {
+        items = items.filter((item) => item.status === filters.status);
+      }
+      if (filters.assignee) {
+        items = items.filter((item) => item.assignee === filters.assignee);
+      }
+      if (filters.priority) {
+        items = items.filter((item) => item.priority === filters.priority);
+      }
+      if (filters.overdue) {
+        const now = /* @__PURE__ */ new Date();
+        items = items.filter(
+          (item) => item.dueDate && new Date(item.dueDate) < now && item.status !== "done"
+        );
+      }
+    }
+    return items.sort((a, b) => {
+      const statusOrder = { "todo": 0, "in-progress": 1, "blocked": 2, "done": 3 };
+      const priorityOrder = { "urgent": 0, "high": 1, "medium": 2, "low": 3 };
+      if (statusOrder[a.status] !== statusOrder[b.status]) {
+        return statusOrder[a.status] - statusOrder[b.status];
+      }
+      if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
+      }
+      if (a.dueDate && b.dueDate) {
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      }
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+  }
+  saveActionItems(items) {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.ACTION_ITEMS, JSON.stringify(items));
+    }
+  }
+  // Timeline Management
+  addTimelineEvent(event) {
+    const newEvent = {
+      ...event,
+      id: `timeline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      author: this.currentUser
+    };
+    const timeline = this.getTimelineEvents();
+    timeline.push(newEvent);
+    this.saveTimeline(timeline);
+    return newEvent;
+  }
+  getTimelineEvents(filters) {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem(STORAGE_KEYS.TIMELINE);
+    let events = stored ? JSON.parse(stored) : [];
+    if (filters) {
+      if (filters.type) {
+        events = events.filter((event) => event.type === filters.type);
+      }
+      if (filters.category) {
+        events = events.filter((event) => event.category === filters.category);
+      }
+      if (filters.dateRange) {
+        const start = new Date(filters.dateRange.start);
+        const end = new Date(filters.dateRange.end);
+        events = events.filter((event) => {
+          const eventDate = new Date(event.timestamp);
+          return eventDate >= start && eventDate <= end;
+        });
+      }
+      if (filters.associatedId) {
+        events = events.filter((event) => event.associatedId === filters.associatedId);
+      }
+      if (filters.priority) {
+        events = events.filter((event) => event.priority === filters.priority);
+      }
+    }
+    return events.sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }
+  saveTimeline(events) {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.TIMELINE, JSON.stringify(events));
+    }
+  }
+  // User Preferences
+  async updatePreferences(updates) {
+    const currentPrefs = this.getPreferences();
+    const updatedPrefs = {
+      ...currentPrefs,
+      ...updates,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.PREFERENCES, JSON.stringify(updatedPrefs));
+    }
+    return updatedPrefs;
+  }
+  getPreferences() {
+    if (typeof window === "undefined") {
+      return this.getDefaultPreferences();
+    }
+    const stored = localStorage.getItem(STORAGE_KEYS.PREFERENCES);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+    const defaultPrefs = this.getDefaultPreferences();
+    localStorage.setItem(STORAGE_KEYS.PREFERENCES, JSON.stringify(defaultPrefs));
+    return defaultPrefs;
+  }
+  getDefaultPreferences() {
+    return {
+      userId: this.currentUser,
+      theme: "dark",
+      notifications: {
+        email: true,
+        inApp: true,
+        meetingReminders: true,
+        povUpdates: true,
+        actionItemDues: true
+      },
+      defaultView: "dashboard",
+      timeZone: typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC",
+      dateFormat: "MM/dd/yyyy",
+      autoSaveInterval: 3e4,
+      // 30 seconds
+      favoriteCommands: [],
+      customTags: [],
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  // Activity Tracking
+  trackActivity(action, component, metadata = {}) {
+    if (typeof window === "undefined") return;
+    const activity = {
+      userId: this.currentUser,
+      sessionId: this.sessionId,
+      action,
+      component,
+      metadata,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    const activities = this.getActivities();
+    activities.push(activity);
+    if (activities.length > 1e3) {
+      activities.splice(0, activities.length - 1e3);
+    }
+    localStorage.setItem(STORAGE_KEYS.ACTIVITY, JSON.stringify(activities));
+  }
+  getActivities(limit2 = 100) {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem(STORAGE_KEYS.ACTIVITY);
+    const activities = stored ? JSON.parse(stored) : [];
+    return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, limit2);
+  }
+  // Analytics and Insights
+  getInsights() {
+    const notes = this.getNotes();
+    const meetings = this.getMeetings();
+    const actionItems = this.getActionItems();
+    const activities = this.getActivities();
+    const weekAgo = /* @__PURE__ */ new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const recentActivities = activities.filter(
+      (activity) => new Date(activity.timestamp) > weekAgo
+    );
+    const pendingItems = actionItems.filter(
+      (item) => item.status === "todo" || item.status === "in-progress"
+    );
+    const completedItems = actionItems.filter((item) => item.status === "done");
+    const productivityScore = actionItems.length > 0 ? Math.round(completedItems.length / actionItems.length * 100) : 100;
+    const trendsLastWeek = {};
+    recentActivities.forEach((activity) => {
+      trendsLastWeek[activity.action] = (trendsLastWeek[activity.action] || 0) + 1;
+    });
+    return {
+      totalNotes: notes.length,
+      totalMeetings: meetings.length,
+      pendingActionItems: pendingItems.length,
+      recentActivity: recentActivities.length,
+      productivityScore,
+      trendsLastWeek
+    };
+  }
+  // Data Management
+  exportUserData() {
+    return {
+      notes: this.getNotes(),
+      meetings: this.getMeetings(),
+      timeline: this.getTimelineEvents(),
+      actionItems: this.getActionItems(),
+      preferences: this.getPreferences(),
+      exportedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  async importUserData(data) {
+    try {
+      if (data.notes) this.saveNotes(data.notes);
+      if (data.meetings) this.saveMeetings(data.meetings);
+      if (data.timeline) this.saveTimeline(data.timeline);
+      if (data.actionItems) this.saveActionItems(data.actionItems);
+      if (data.preferences && typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEYS.PREFERENCES, JSON.stringify(data.preferences));
+      }
+      return true;
+    } catch (error) {
+      console.error("Failed to import user data:", error);
+      return false;
+    }
+  }
+  clearAllData() {
+    if (typeof window !== "undefined") {
+      Object.values(STORAGE_KEYS).forEach((key) => {
+        localStorage.removeItem(key);
+      });
+    }
+  }
+};
+var userActivityService = new UserActivityService();
+
+// src/services/rbac-middleware.ts
+var ROLE_PERMISSIONS = {
+  admin: {
+    canViewAllUsers: true,
+    canViewAllPOVs: true,
+    canViewAllTRRs: true,
+    canModifySystemSettings: true,
+    allowedCustomers: "all",
+    allowedProjects: "all"
+  },
+  manager: {
+    canViewAllUsers: false,
+    // Only their team
+    canViewAllPOVs: true,
+    canViewAllTRRs: true,
+    canModifySystemSettings: false,
+    allowedCustomers: "all",
+    allowedProjects: "all"
+  },
+  senior_dc: {
+    canViewAllUsers: false,
+    canViewAllPOVs: false,
+    // Only assigned POVs
+    canViewAllTRRs: false,
+    // Only their TRRs
+    canModifySystemSettings: false,
+    allowedCustomers: ["assigned"],
+    allowedProjects: ["assigned"]
+  },
+  dc: {
+    canViewAllUsers: false,
+    canViewAllPOVs: false,
+    canViewAllTRRs: false,
+    canModifySystemSettings: false,
+    allowedCustomers: ["assigned"],
+    allowedProjects: ["assigned"]
+  },
+  analyst: {
+    canViewAllUsers: false,
+    canViewAllPOVs: false,
+    canViewAllTRRs: false,
+    canModifySystemSettings: false,
+    allowedCustomers: ["assigned"],
+    allowedProjects: ["assigned"]
+  }
+};
+var RBACMiddleware = class {
+  /**
+   * Apply role-based filtering to database queries
+   */
+  static filterQuery(context, baseQuery = {}) {
+    const permissions = ROLE_PERMISSIONS[context.userRole];
+    if (!permissions) {
+      throw new Error(`Unknown role: ${context.userRole}`);
+    }
+    if (permissions.canViewAllPOVs && permissions.canViewAllTRRs) {
+      return baseQuery;
+    }
+    const userFilter = {
+      OR: [
+        { assignedUserId: context.userId },
+        { createdBy: context.userId },
+        { ownerId: context.userId },
+        // Include team assignments if user is part of a team
+        ...context.userTeam ? [{ teamId: context.userTeam }] : [],
+        // Include project assignments
+        ...context.assignedProjects?.length ? [
+          { projectId: { in: context.assignedProjects } }
+        ] : [],
+        // Include customer assignments
+        ...context.assignedCustomers?.length ? [
+          { customerId: { in: context.assignedCustomers } }
+        ] : []
+      ]
+    };
+    return {
+      ...baseQuery,
+      where: {
+        ...baseQuery.where,
+        AND: [
+          baseQuery.where || {},
+          userFilter
+        ]
+      }
+    };
+  }
+  /**
+   * Check if user has permission to perform an action on a resource
+   */
+  static canAccessResource(userRole, resource, action, context) {
+    const permissions = ROLE_PERMISSIONS[userRole];
+    if (!permissions) {
+      return false;
+    }
+    const resourcePermissions = {
+      users: {
+        read: permissions.canViewAllUsers,
+        create: userRole === "admin",
+        update: userRole === "admin",
+        delete: userRole === "admin"
+      },
+      povs: {
+        read: permissions.canViewAllPOVs || this.isOwnerOrAssigned(context),
+        create: ["admin", "manager", "senior_dc", "dc"].includes(userRole),
+        update: permissions.canViewAllPOVs || this.isOwnerOrAssigned(context),
+        delete: ["admin", "manager"].includes(userRole)
+      },
+      trrs: {
+        read: permissions.canViewAllTRRs || this.isOwnerOrAssigned(context),
+        create: ["admin", "manager", "senior_dc", "dc"].includes(userRole),
+        update: permissions.canViewAllTRRs || this.isOwnerOrAssigned(context),
+        delete: ["admin", "manager"].includes(userRole)
+      },
+      scenarios: {
+        read: ["admin", "manager", "senior_dc", "dc"].includes(userRole),
+        create: ["admin", "manager", "senior_dc", "dc"].includes(userRole),
+        update: ["admin", "manager", "senior_dc", "dc"].includes(userRole),
+        delete: ["admin", "manager"].includes(userRole)
+      },
+      system_settings: {
+        read: permissions.canModifySystemSettings,
+        create: permissions.canModifySystemSettings,
+        update: permissions.canModifySystemSettings,
+        delete: permissions.canModifySystemSettings
+      }
+    };
+    const resourcePerms = resourcePermissions[resource];
+    if (!resourcePerms) {
+      return false;
+    }
+    return resourcePerms[action] || false;
+  }
+  /**
+   * Filter data based on user's role and assignments
+   */
+  static filterData(data, context) {
+    const permissions = ROLE_PERMISSIONS[context.userRole];
+    if (permissions.canViewAllPOVs && permissions.canViewAllTRRs) {
+      return data;
+    }
+    return data.filter((item) => {
+      return item.assignedUserId === context.userId || item.createdBy === context.userId || item.ownerId === context.userId || // Add additional filtering logic as needed
+      this.isUserAssignedToItem(item, context);
+    });
+  }
+  /**
+   * Apply RBAC filtering to command execution
+   */
+  static filterCommand(command, userRole, userId) {
+    const permissions = ROLE_PERMISSIONS[userRole];
+    if (!permissions) {
+      throw new Error(`Unknown role: ${userRole}`);
+    }
+    if (!permissions.canViewAllPOVs) {
+      if (command.includes("pov list")) {
+        command += ` --user-filter ${userId}`;
+      }
+      if (command.includes("pov report")) {
+        command += ` --assigned-only`;
+      }
+    }
+    if (!permissions.canViewAllTRRs) {
+      if (command.includes("trr list")) {
+        command += ` --user-scope ${userId}`;
+      }
+      if (command.includes("trr export")) {
+        command += ` --user-data-only`;
+      }
+    }
+    if (userRole !== "admin") {
+      const blockedCommands = ["system delete", "user delete", "admin"];
+      for (const blocked of blockedCommands) {
+        if (command.toLowerCase().includes(blocked)) {
+          throw new Error(`Command '${blocked}' not allowed for role '${userRole}'`);
+        }
+      }
+    }
+    return command;
+  }
+  /**
+   * Get user's effective permissions summary
+   */
+  static getUserPermissions(userRole) {
+    const permissions = ROLE_PERMISSIONS[userRole];
+    if (!permissions) {
+      return { canView: [], canCreate: [], canUpdate: [], canDelete: [] };
+    }
+    const resources = ["povs", "trrs", "scenarios", "users", "system_settings"];
+    return {
+      canView: resources.filter(
+        (resource) => this.canAccessResource(userRole, resource, "read")
+      ),
+      canCreate: resources.filter(
+        (resource) => this.canAccessResource(userRole, resource, "create")
+      ),
+      canUpdate: resources.filter(
+        (resource) => this.canAccessResource(userRole, resource, "update")
+      ),
+      canDelete: resources.filter(
+        (resource) => this.canAccessResource(userRole, resource, "delete")
+      )
+    };
+  }
+  /**
+   * Audit log for RBAC events
+   */
+  static logRBACEvent(event) {
+    const logEntry = {
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      ...event
+    };
+    console.log("[RBAC Audit]", logEntry);
+    if (typeof window !== "undefined") {
+      const existing = JSON.parse(localStorage.getItem("rbac_audit_log") || "[]");
+      existing.push(logEntry);
+      const trimmed = existing.slice(-1e3);
+      localStorage.setItem("rbac_audit_log", JSON.stringify(trimmed));
+    }
+  }
+  static isOwnerOrAssigned(context) {
+    if (!context || !context.userId) return false;
+    return context.ownerId === context.userId;
+  }
+  static isUserAssignedToItem(item, context) {
+    if (context.assignedProjects?.includes(item.projectId)) {
+      return true;
+    }
+    if (context.assignedCustomers?.includes(item.customerId)) {
+      return true;
+    }
+    return false;
+  }
+};
+
+// src/services/dc-context-store.ts
+var DCContextStore = class _DCContextStore {
+  constructor() {
+    this.data = {
+      currentUser: null,
+      customerEngagements: /* @__PURE__ */ new Map(),
+      activePOVs: /* @__PURE__ */ new Map(),
+      trrRecords: /* @__PURE__ */ new Map(),
+      workflowHistory: []
+    };
+    this.loadFromStorage();
+  }
+  static getInstance() {
+    if (!_DCContextStore.instance) {
+      _DCContextStore.instance = new _DCContextStore();
+    }
+    return _DCContextStore.instance;
+  }
+  // Load data from localStorage/sessionStorage
+  loadFromStorage() {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = localStorage.getItem("dc_context_store");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        this.data.currentUser = parsed.currentUser;
+        this.data.customerEngagements = new Map(parsed.customerEngagements || []);
+        this.data.activePOVs = new Map(parsed.activePOVs || []);
+        this.data.trrRecords = new Map(parsed.trrRecords || []);
+        this.data.workflowHistory = parsed.workflowHistory || [];
+      }
+    } catch (error) {
+      console.warn("Failed to load DC context from storage:", error);
+    }
+  }
+  // Save data to localStorage
+  saveToStorage() {
+    if (typeof window === "undefined") return;
+    try {
+      const toSave = {
+        currentUser: this.data.currentUser,
+        customerEngagements: Array.from(this.data.customerEngagements.entries()),
+        activePOVs: Array.from(this.data.activePOVs.entries()),
+        trrRecords: Array.from(this.data.trrRecords.entries()),
+        workflowHistory: this.data.workflowHistory.slice(-100)
+        // Keep last 100 entries
+      };
+      localStorage.setItem("dc_context_store", JSON.stringify(toSave));
+    } catch (error) {
+      console.warn("Failed to save DC context to storage:", error);
+    }
+  }
+  // User Management
+  setCurrentUser(user) {
+    this.data.currentUser = user;
+    this.saveToStorage();
+  }
+  getCurrentUser() {
+    return this.data.currentUser;
+  }
+  // Customer Engagement Management
+  addCustomerEngagement(engagement) {
+    this.data.customerEngagements.set(engagement.id, engagement);
+    this.saveToStorage();
+  }
+  replaceCustomerEngagements(engagements) {
+    this.data.customerEngagements = new Map(engagements.map((eng) => [eng.id, eng]));
+    this.saveToStorage();
+  }
+  getCustomerEngagement(id) {
+    return this.data.customerEngagements.get(id);
+  }
+  getAllCustomerEngagements() {
+    return Array.from(this.data.customerEngagements.values());
+  }
+  updateCustomerEngagement(id, updates) {
+    const existing = this.data.customerEngagements.get(id);
+    if (existing) {
+      const updated = { ...existing, ...updates, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+      this.data.customerEngagements.set(id, updated);
+      this.saveToStorage();
+    }
+  }
+  // POV Management
+  addActivePOV(pov) {
+    this.data.activePOVs.set(pov.id, pov);
+    this.saveToStorage();
+  }
+  replaceActivePOVs(povs) {
+    this.data.activePOVs = new Map(povs.map((pov) => [pov.id, pov]));
+    this.saveToStorage();
+  }
+  getActivePOV(id) {
+    return this.data.activePOVs.get(id);
+  }
+  getAllActivePOVs() {
+    return Array.from(this.data.activePOVs.values());
+  }
+  updateActivePOV(id, updates) {
+    const existing = this.data.activePOVs.get(id);
+    if (existing) {
+      const updated = { ...existing, ...updates, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+      this.data.activePOVs.set(id, updated);
+      this.saveToStorage();
+    }
+  }
+  recordPOVInsight(id, insight) {
+    const existing = this.data.activePOVs.get(id);
+    if (!existing) return void 0;
+    const updated = {
+      ...existing,
+      aiInsights: [...existing.aiInsights || [], insight],
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    this.data.activePOVs.set(id, updated);
+    this.saveToStorage();
+    return updated;
+  }
+  // TRR Management
+  addTRRRecord(trr) {
+    this.data.trrRecords.set(trr.id, trr);
+    this.saveToStorage();
+  }
+  replaceTRRRecords(trrs) {
+    this.data.trrRecords = new Map(trrs.map((trr) => [trr.id, trr]));
+    this.saveToStorage();
+  }
+  getTRRRecord(id) {
+    return this.data.trrRecords.get(id);
+  }
+  getAllTRRRecords() {
+    return Array.from(this.data.trrRecords.values());
+  }
+  getTRRsByCustomer(customerId) {
+    return this.getAllTRRRecords().filter((trr) => trr.customerId === customerId);
+  }
+  getTRRsByPOV(povId) {
+    return this.getAllTRRRecords().filter((trr) => trr.povId === povId);
+  }
+  updateTRRRecord(id, updates) {
+    const existing = this.data.trrRecords.get(id);
+    if (existing) {
+      const updated = { ...existing, ...updates, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+      this.data.trrRecords.set(id, updated);
+      this.saveToStorage();
+    }
+  }
+  recordTRRInsight(id, insight) {
+    const existing = this.data.trrRecords.get(id);
+    if (!existing) return void 0;
+    const updated = {
+      ...existing,
+      aiInsights: [...existing.aiInsights || [], insight],
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    this.data.trrRecords.set(id, updated);
+    this.saveToStorage();
+    return updated;
+  }
+  // Workflow History
+  addWorkflowHistory(entry) {
+    const historyEntry = {
+      ...entry,
+      id: `wf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    this.data.workflowHistory.push(historyEntry);
+    this.saveToStorage();
+  }
+  getWorkflowHistory(userId, workflowType) {
+    let history = [...this.data.workflowHistory];
+    if (userId) {
+      history = history.filter((h) => h.userId === userId);
+    }
+    if (workflowType) {
+      history = history.filter((h) => h.workflowType === workflowType);
+    }
+    return history.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }
+  // Context Analysis
+  getCurrentWorkflowContext() {
+    const activeCustomers = this.getAllCustomerEngagements().filter(
+      (c) => this.getAllActivePOVs().some((p) => p.customerId === c.id && p.status !== "completed")
+    ).length;
+    const activePOVs = this.getAllActivePOVs().filter(
+      (p) => p.status === "executing" || p.status === "planning"
+    ).length;
+    const pendingTRRs = this.getAllTRRRecords().filter(
+      (t) => t.status === "pending" || t.status === "in-review"
+    ).length;
+    const recentActivity = this.getWorkflowHistory().slice(0, 10);
+    const upcomingMilestones = [];
+    this.getAllActivePOVs().forEach((pov) => {
+      pov.timeline.milestones.forEach((milestone) => {
+        if (!milestone.actual && new Date(milestone.planned) > /* @__PURE__ */ new Date()) {
+          upcomingMilestones.push({
+            name: `${pov.name}: ${milestone.name}`,
+            date: milestone.planned,
+            type: "pov_milestone"
+          });
+        }
+      });
+    });
+    this.getAllTRRRecords().forEach((trr) => {
+      if (trr.status !== "validated" && new Date(trr.timeline.targetValidation) > /* @__PURE__ */ new Date()) {
+        upcomingMilestones.push({
+          name: `TRR: ${trr.title}`,
+          date: trr.timeline.targetValidation,
+          type: "trr_deadline"
+        });
+      }
+    });
+    upcomingMilestones.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return {
+      activeCustomers,
+      activePOVs,
+      pendingTRRs,
+      recentActivity,
+      upcomingMilestones: upcomingMilestones.slice(0, 10)
+    };
+  }
+  // Onboarding starter data generation scoped to authenticated user
+  seedStarterDataForUser(user) {
+    if (!user?.id) {
+      throw new Error("Valid user profile required to seed starter data");
+    }
+    const existingRecords = Array.from(this.data.trrRecords.values()).some((record) => record.ownerId === user.id);
+    if (existingRecords) {
+      return { seeded: false };
+    }
+    const customerId = `cust_${user.id}_starter`;
+    const povId = `pov_${user.id}_starter`;
+    const sampleCustomer = {
+      id: customerId,
+      ownerId: user.id,
+      name: "Starter Engagement",
+      industry: "Technology",
+      size: "enterprise",
+      maturityLevel: "intermediate",
+      primaryConcerns: ["Cloud Security", "Insider Threats", "Compliance"],
+      techStack: ["AWS", "Kubernetes", "Splunk", "ServiceNow"],
+      stakeholders: [
+        { name: "Executive Sponsor", role: "CISO", influence: "high", technical: true },
+        { name: "Security Manager", role: "Security Manager", influence: "medium", technical: true }
+      ],
+      timeline: {
+        startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1e3).toISOString(),
+        targetDecision: new Date(Date.now() + 21 * 24 * 60 * 60 * 1e3).toISOString(),
+        keyMilestones: [
+          { name: "Initial Assessment", date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1e3).toISOString(), status: "complete" },
+          { name: "POV Kickoff", date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1e3).toISOString(), status: "complete" },
+          { name: "Executive Briefing", date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1e3).toISOString(), status: "pending" }
+        ]
+      },
+      budget: {
+        range: "$250K-$500K",
+        decisionMaker: "Executive Sponsor",
+        approvalProcess: "Executive Steering Committee"
+      },
+      competition: ["CrowdStrike", "Microsoft Sentinel"],
+      notes: [
+        "Starter engagement generated for onboarding",
+        "Customize this record with real customer information"
+      ],
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    const samplePOV = {
+      id: povId,
+      ownerId: user.id,
+      customerId,
+      name: "Starter XSIAM POV",
+      status: "planning",
+      scenarios: [
+        { id: `sc_${user.id}_001`, name: "Cloud Posture Assessment", type: "cloud-posture", status: "planned" },
+        { id: `sc_${user.id}_002`, name: "Insider Threat Detection", type: "insider-threat", status: "planned" }
+      ],
+      objectives: [
+        "Demonstrate detection and response capabilities",
+        "Integrate with existing cloud infrastructure"
+      ],
+      successMetrics: [
+        "Detect 90% of simulated attacks",
+        "Automate 70% of tier-1 responses"
+      ],
+      timeline: {
+        planned: (/* @__PURE__ */ new Date()).toISOString(),
+        actual: void 0,
+        milestones: [
+          { name: "Environment Setup", planned: new Date(Date.now() + 3 * 24 * 60 * 60 * 1e3).toISOString() },
+          { name: "Scenario Execution", planned: new Date(Date.now() + 10 * 24 * 60 * 60 * 1e3).toISOString() }
+        ]
+      },
+      resources: {
+        dcHours: 32,
+        seHours: 16,
+        infrastructure: ["XSIAM Tenant", "Sample Data Sets"]
+      },
+      outcomes: {
+        technicalWins: [],
+        businessImpact: [],
+        lessonsLearned: []
+      },
+      nextSteps: ["Complete ransomware scenario", "Prepare executive presentation", "Draft technical proposal"],
+      aiInsights: [],
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    const sampleTRRs = [
+      {
+        id: `trr_${user.id}_001`,
+        ownerId: user.id,
+        customerId,
+        povId,
+        title: "CloudTrail Integration Validation",
+        category: "integration",
+        priority: "high",
+        status: "draft",
+        description: "Validate ingestion and parsing of AWS CloudTrail logs into XSIAM.",
+        acceptanceCriteria: [
+          "Logs ingested within 5 minutes",
+          "Standard fields parsed correctly",
+          "Custom queries execute successfully"
+        ],
+        validationMethod: "Demonstration with sample datasets",
+        validationEvidence: [],
+        assignedTo: user.name,
+        reviewers: ["Security Manager"],
+        timeline: {
+          created: (/* @__PURE__ */ new Date()).toISOString(),
+          targetValidation: new Date(Date.now() + 14 * 24 * 60 * 60 * 1e3).toISOString(),
+          actualValidation: void 0
+        },
+        dependencies: ["AWS account access", "CloudTrail configuration"],
+        riskLevel: "medium",
+        businessImpact: "Critical for establishing cloud visibility",
+        customerStakeholder: "Executive Sponsor",
+        notes: ["Starter TRR created for onboarding"],
+        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    ];
+    this.setCurrentUser(user);
+    this.addCustomerEngagement(sampleCustomer);
+    this.addActivePOV(samplePOV);
+    sampleTRRs.forEach((trr) => this.addTRRRecord(trr));
+    return {
+      seeded: true,
+      customer: sampleCustomer,
+      pov: samplePOV,
+      trrs: sampleTRRs
+    };
+  }
+};
+var dcContextStore = DCContextStore.getInstance();
+
+// src/firestore/client.ts
+var import_firestore4 = require("firebase/firestore");
 var FirestoreClient = class {
   constructor(config) {
     this.config = config;
-    this.db = (0, import_firestore2.getFirestore)(config.app);
+    this.db = (0, import_firestore4.getFirestore)(config.app);
     if (config.useEmulator && config.emulatorHost && config.emulatorPort) {
-      (0, import_firestore2.connectFirestoreEmulator)(this.db, config.emulatorHost, config.emulatorPort);
+      (0, import_firestore4.connectFirestoreEmulator)(this.db, config.emulatorHost, config.emulatorPort);
     }
   }
   getDatabase() {
@@ -416,742 +1967,36 @@ var ChatValidationRules = {
   maxMessages: 1e3,
   maxTitleLength: 100
 };
-
-// src/types/auth.ts
-var import_zod2 = require("zod");
-var UserRole = /* @__PURE__ */ ((UserRole2) => {
-  UserRole2["USER"] = "user";
-  UserRole2["MANAGER"] = "manager";
-  UserRole2["ADMIN"] = "admin";
-  return UserRole2;
-})(UserRole || {});
-var UserStatus = /* @__PURE__ */ ((UserStatus2) => {
-  UserStatus2["ACTIVE"] = "active";
-  UserStatus2["INACTIVE"] = "inactive";
-  UserStatus2["PENDING"] = "pending";
-  UserStatus2["SUSPENDED"] = "suspended";
-  return UserStatus2;
-})(UserStatus || {});
-var UserProfileSchema = import_zod2.z.object({
-  uid: import_zod2.z.string(),
-  email: import_zod2.z.string().email(),
-  displayName: import_zod2.z.string(),
-  role: import_zod2.z.nativeEnum(UserRole),
-  status: import_zod2.z.nativeEnum(UserStatus),
-  department: import_zod2.z.string().optional(),
-  title: import_zod2.z.string().optional(),
-  manager: import_zod2.z.string().optional(),
-  // uid of manager
-  teams: import_zod2.z.array(import_zod2.z.string()).default([]),
-  // team IDs
-  preferences: import_zod2.z.object({
-    theme: import_zod2.z.enum(["light", "dark", "system"]).default("system"),
-    notifications: import_zod2.z.object({
-      email: import_zod2.z.boolean().default(true),
-      inApp: import_zod2.z.boolean().default(true),
-      desktop: import_zod2.z.boolean().default(false)
-    }).default({}),
-    dashboard: import_zod2.z.object({
-      layout: import_zod2.z.enum(["grid", "list"]).default("grid"),
-      defaultView: import_zod2.z.string().optional()
-    }).default({})
-  }).default({}),
-  permissions: import_zod2.z.object({
-    povManagement: import_zod2.z.object({
-      create: import_zod2.z.boolean().default(true),
-      edit: import_zod2.z.boolean().default(true),
-      delete: import_zod2.z.boolean().default(false),
-      viewAll: import_zod2.z.boolean().default(false)
-    }).default({}),
-    trrManagement: import_zod2.z.object({
-      create: import_zod2.z.boolean().default(true),
-      edit: import_zod2.z.boolean().default(true),
-      delete: import_zod2.z.boolean().default(false),
-      approve: import_zod2.z.boolean().default(false),
-      viewAll: import_zod2.z.boolean().default(false)
-    }).default({}),
-    contentHub: import_zod2.z.object({
-      create: import_zod2.z.boolean().default(true),
-      edit: import_zod2.z.boolean().default(true),
-      publish: import_zod2.z.boolean().default(false),
-      moderate: import_zod2.z.boolean().default(false)
-    }).default({}),
-    scenarioEngine: import_zod2.z.object({
-      execute: import_zod2.z.boolean().default(true),
-      create: import_zod2.z.boolean().default(false),
-      modify: import_zod2.z.boolean().default(false)
-    }).default({}),
-    terminal: import_zod2.z.object({
-      basic: import_zod2.z.boolean().default(true),
-      advanced: import_zod2.z.boolean().default(false),
-      admin: import_zod2.z.boolean().default(false)
-    }).default({}),
-    analytics: import_zod2.z.object({
-      view: import_zod2.z.boolean().default(true),
-      export: import_zod2.z.boolean().default(false),
-      detailed: import_zod2.z.boolean().default(false)
-    }).default({}),
-    userManagement: import_zod2.z.object({
-      view: import_zod2.z.boolean().default(false),
-      edit: import_zod2.z.boolean().default(false),
-      create: import_zod2.z.boolean().default(false),
-      delete: import_zod2.z.boolean().default(false)
-    }).default({})
-  }),
-  createdAt: import_zod2.z.date(),
-  updatedAt: import_zod2.z.date(),
-  lastLoginAt: import_zod2.z.date().optional()
-});
-var TeamSchema = import_zod2.z.object({
-  id: import_zod2.z.string(),
-  name: import_zod2.z.string(),
-  description: import_zod2.z.string().optional(),
-  manager: import_zod2.z.string(),
-  // uid of team manager
-  members: import_zod2.z.array(import_zod2.z.string()),
-  // array of user uids
-  region: import_zod2.z.string().optional(),
-  department: import_zod2.z.string().optional(),
-  isActive: import_zod2.z.boolean().default(true),
-  createdAt: import_zod2.z.date(),
-  updatedAt: import_zod2.z.date()
-});
-var ROLE_PERMISSIONS = {
-  ["user" /* USER */]: {
-    povManagement: {
-      create: true,
-      edit: true,
-      delete: false,
-      viewAll: false
-    },
-    trrManagement: {
-      create: true,
-      edit: true,
-      delete: false,
-      approve: false,
-      viewAll: false
-    },
-    contentHub: {
-      create: true,
-      edit: true,
-      publish: false,
-      moderate: false
-    },
-    scenarioEngine: {
-      execute: true,
-      create: false,
-      modify: false
-    },
-    terminal: {
-      basic: true,
-      advanced: false,
-      admin: false
-    },
-    analytics: {
-      view: true,
-      export: false,
-      detailed: false
-    },
-    userManagement: {
-      view: false,
-      edit: false,
-      create: false,
-      delete: false
-    }
-  },
-  ["manager" /* MANAGER */]: {
-    povManagement: {
-      create: true,
-      edit: true,
-      delete: true,
-      viewAll: true
-    },
-    trrManagement: {
-      create: true,
-      edit: true,
-      delete: true,
-      approve: true,
-      viewAll: true
-    },
-    contentHub: {
-      create: true,
-      edit: true,
-      publish: true,
-      moderate: true
-    },
-    scenarioEngine: {
-      execute: true,
-      create: true,
-      modify: true
-    },
-    terminal: {
-      basic: true,
-      advanced: true,
-      admin: false
-    },
-    analytics: {
-      view: true,
-      export: true,
-      detailed: true
-    },
-    userManagement: {
-      view: true,
-      edit: false,
-      create: false,
-      delete: false
-    }
-  },
-  ["admin" /* ADMIN */]: {
-    povManagement: {
-      create: true,
-      edit: true,
-      delete: true,
-      viewAll: true
-    },
-    trrManagement: {
-      create: true,
-      edit: true,
-      delete: true,
-      approve: true,
-      viewAll: true
-    },
-    contentHub: {
-      create: true,
-      edit: true,
-      publish: true,
-      moderate: true
-    },
-    scenarioEngine: {
-      execute: true,
-      create: true,
-      modify: true
-    },
-    terminal: {
-      basic: true,
-      advanced: true,
-      admin: true
-    },
-    analytics: {
-      view: true,
-      export: true,
-      detailed: true
-    },
-    userManagement: {
-      view: true,
-      edit: true,
-      create: true,
-      delete: true
-    }
-  }
-};
-var ROLE_NAVIGATION = {
-  ["user" /* USER */]: [
-    "/dashboard",
-    "/pov",
-    "/trr",
-    "/content",
-    "/scenarios",
-    "/docs",
-    "/terminal",
-    "/preferences",
-    "/escalation"
-  ],
-  ["manager" /* MANAGER */]: [
-    "/dashboard",
-    "/team",
-    "/pov",
-    "/trr",
-    "/activity",
-    "/content",
-    "/scenarios",
-    "/docs",
-    "/terminal",
-    "/settings",
-    "/preferences",
-    "/escalation"
-  ],
-  ["admin" /* ADMIN */]: [
-    "/dashboard",
-    "/admin",
-    "/users",
-    "/teams",
-    "/pov",
-    "/trr",
-    "/activity",
-    "/content",
-    "/scenarios",
-    "/docs",
-    "/terminal",
-    "/analytics",
-    "/settings",
-    "/preferences",
-    "/escalation"
-  ]
-};
-var hasPermission = (userProfile, resource, action) => {
-  const resourcePermissions = userProfile.permissions[resource];
-  return resourcePermissions?.[action] ?? false;
-};
-var canAccessRoute = (userProfile, route) => {
-  return ROLE_NAVIGATION[userProfile.role].includes(route);
-};
-var getDefaultPermissions = (role) => {
-  return ROLE_PERMISSIONS[role];
-};
-
-// src/types/projects.ts
-var import_zod3 = require("zod");
-var ProjectStatus = /* @__PURE__ */ ((ProjectStatus2) => {
-  ProjectStatus2["DRAFT"] = "draft";
-  ProjectStatus2["ACTIVE"] = "active";
-  ProjectStatus2["ON_HOLD"] = "on_hold";
-  ProjectStatus2["COMPLETED"] = "completed";
-  ProjectStatus2["CANCELLED"] = "cancelled";
-  return ProjectStatus2;
-})(ProjectStatus || {});
-var Priority = /* @__PURE__ */ ((Priority2) => {
-  Priority2["LOW"] = "low";
-  Priority2["MEDIUM"] = "medium";
-  Priority2["HIGH"] = "high";
-  Priority2["CRITICAL"] = "critical";
-  return Priority2;
-})(Priority || {});
-var POVStatus = /* @__PURE__ */ ((POVStatus2) => {
-  POVStatus2["PLANNING"] = "planning";
-  POVStatus2["IN_PROGRESS"] = "in_progress";
-  POVStatus2["TESTING"] = "testing";
-  POVStatus2["VALIDATING"] = "validating";
-  POVStatus2["COMPLETED"] = "completed";
-  POVStatus2["AT_RISK"] = "at_risk";
-  POVStatus2["CANCELLED"] = "cancelled";
-  return POVStatus2;
-})(POVStatus || {});
-var TRRStatus = /* @__PURE__ */ ((TRRStatus2) => {
-  TRRStatus2["DRAFT"] = "draft";
-  TRRStatus2["IN_REVIEW"] = "in_review";
-  TRRStatus2["PENDING_VALIDATION"] = "pending_validation";
-  TRRStatus2["VALIDATED"] = "validated";
-  TRRStatus2["APPROVED"] = "approved";
-  TRRStatus2["REJECTED"] = "rejected";
-  TRRStatus2["COMPLETED"] = "completed";
-  return TRRStatus2;
-})(TRRStatus || {});
-var TaskStatus = /* @__PURE__ */ ((TaskStatus2) => {
-  TaskStatus2["TODO"] = "todo";
-  TaskStatus2["IN_PROGRESS"] = "in_progress";
-  TaskStatus2["REVIEW"] = "review";
-  TaskStatus2["DONE"] = "done";
-  TaskStatus2["BLOCKED"] = "blocked";
-  return TaskStatus2;
-})(TaskStatus || {});
-var ProjectSchema = import_zod3.z.object({
-  id: import_zod3.z.string(),
-  title: import_zod3.z.string(),
-  description: import_zod3.z.string().optional(),
-  customer: import_zod3.z.object({
-    name: import_zod3.z.string(),
-    industry: import_zod3.z.string().optional(),
-    size: import_zod3.z.enum(["startup", "small", "medium", "enterprise"]).optional(),
-    region: import_zod3.z.string().optional(),
-    contact: import_zod3.z.object({
-      name: import_zod3.z.string(),
-      email: import_zod3.z.string().email(),
-      role: import_zod3.z.string().optional(),
-      phone: import_zod3.z.string().optional()
-    }).optional()
-  }),
-  status: import_zod3.z.nativeEnum(ProjectStatus),
-  priority: import_zod3.z.nativeEnum(Priority),
-  owner: import_zod3.z.string(),
-  // uid of project owner
-  team: import_zod3.z.array(import_zod3.z.string()),
-  // array of user uids
-  startDate: import_zod3.z.date(),
-  endDate: import_zod3.z.date().optional(),
-  estimatedValue: import_zod3.z.number().optional(),
-  actualValue: import_zod3.z.number().optional(),
-  tags: import_zod3.z.array(import_zod3.z.string()).default([]),
-  // Relations to other entities
-  povIds: import_zod3.z.array(import_zod3.z.string()).default([]),
-  trrIds: import_zod3.z.array(import_zod3.z.string()).default([]),
-  scenarioIds: import_zod3.z.array(import_zod3.z.string()).default([]),
-  // Metadata
-  createdAt: import_zod3.z.date(),
-  updatedAt: import_zod3.z.date(),
-  createdBy: import_zod3.z.string(),
-  lastModifiedBy: import_zod3.z.string()
-});
-var POVSchema = import_zod3.z.object({
-  id: import_zod3.z.string(),
-  projectId: import_zod3.z.string(),
-  // reference to parent project
-  title: import_zod3.z.string(),
-  description: import_zod3.z.string(),
-  status: import_zod3.z.nativeEnum(POVStatus),
-  priority: import_zod3.z.nativeEnum(Priority),
-  // POV Specific Fields
-  objectives: import_zod3.z.array(import_zod3.z.object({
-    id: import_zod3.z.string(),
-    description: import_zod3.z.string(),
-    success_criteria: import_zod3.z.string(),
-    status: import_zod3.z.enum(["pending", "in_progress", "completed", "failed"]),
-    weight: import_zod3.z.number().min(0).max(100).default(100)
-    // percentage weight
-  })).default([]),
-  testPlan: import_zod3.z.object({
-    scenarios: import_zod3.z.array(import_zod3.z.string()),
-    // scenario IDs
-    environment: import_zod3.z.string().optional(),
-    timeline: import_zod3.z.object({
-      start: import_zod3.z.date(),
-      end: import_zod3.z.date(),
-      milestones: import_zod3.z.array(import_zod3.z.object({
-        id: import_zod3.z.string(),
-        title: import_zod3.z.string(),
-        date: import_zod3.z.date(),
-        status: import_zod3.z.enum(["upcoming", "in_progress", "completed", "overdue"])
-      }))
-    }),
-    resources: import_zod3.z.array(import_zod3.z.object({
-      type: import_zod3.z.enum(["personnel", "equipment", "software", "budget"]),
-      description: import_zod3.z.string(),
-      quantity: import_zod3.z.number().optional(),
-      cost: import_zod3.z.number().optional()
-    })).default([])
-  }).optional(),
-  // Success Metrics
-  successMetrics: import_zod3.z.object({
-    businessValue: import_zod3.z.object({
-      roi: import_zod3.z.number().optional(),
-      costSavings: import_zod3.z.number().optional(),
-      riskReduction: import_zod3.z.string().optional(),
-      efficiency_gains: import_zod3.z.string().optional()
-    }).optional(),
-    technicalMetrics: import_zod3.z.object({
-      performance: import_zod3.z.record(import_zod3.z.number()).optional(),
-      reliability: import_zod3.z.number().optional(),
-      // percentage
-      security_score: import_zod3.z.number().optional()
-    }).optional()
-  }).default({}),
-  // Timeline tracking
-  phases: import_zod3.z.array(import_zod3.z.object({
-    id: import_zod3.z.string(),
-    name: import_zod3.z.string(),
-    description: import_zod3.z.string().optional(),
-    startDate: import_zod3.z.date(),
-    endDate: import_zod3.z.date().optional(),
-    status: import_zod3.z.nativeEnum(TaskStatus),
-    tasks: import_zod3.z.array(import_zod3.z.string()).default([])
-    // task IDs
-  })).default([]),
-  // Assignment
-  owner: import_zod3.z.string(),
-  // uid of POV owner
-  team: import_zod3.z.array(import_zod3.z.string()).default([]),
-  // Metadata
-  createdAt: import_zod3.z.date(),
-  updatedAt: import_zod3.z.date(),
-  createdBy: import_zod3.z.string(),
-  lastModifiedBy: import_zod3.z.string()
-});
-var TRRSchema = import_zod3.z.object({
-  id: import_zod3.z.string(),
-  projectId: import_zod3.z.string(),
-  // reference to parent project
-  povId: import_zod3.z.string().optional(),
-  // optional reference to related POV
-  title: import_zod3.z.string(),
-  description: import_zod3.z.string(),
-  status: import_zod3.z.nativeEnum(TRRStatus),
-  priority: import_zod3.z.nativeEnum(Priority),
-  // TRR Specific Fields
-  riskAssessment: import_zod3.z.object({
-    overall_score: import_zod3.z.number().min(0).max(10),
-    categories: import_zod3.z.array(import_zod3.z.object({
-      category: import_zod3.z.string(),
-      score: import_zod3.z.number().min(0).max(10),
-      description: import_zod3.z.string(),
-      mitigation: import_zod3.z.string().optional(),
-      evidence: import_zod3.z.array(import_zod3.z.string()).default([])
-      // file URLs or references
-    }))
-  }),
-  findings: import_zod3.z.array(import_zod3.z.object({
-    id: import_zod3.z.string(),
-    title: import_zod3.z.string(),
-    description: import_zod3.z.string(),
-    severity: import_zod3.z.enum(["low", "medium", "high", "critical"]),
-    category: import_zod3.z.string(),
-    evidence: import_zod3.z.array(import_zod3.z.object({
-      type: import_zod3.z.enum(["screenshot", "log", "document", "test_result"]),
-      url: import_zod3.z.string(),
-      description: import_zod3.z.string().optional()
-    })).default([]),
-    recommendation: import_zod3.z.string().optional(),
-    status: import_zod3.z.enum(["open", "addressed", "accepted_risk", "false_positive"])
-  })).default([]),
-  // Validation and Approval
-  validation: import_zod3.z.object({
-    validator: import_zod3.z.string().optional(),
-    // uid of validator
-    validatedAt: import_zod3.z.date().optional(),
-    validationNotes: import_zod3.z.string().optional(),
-    approved: import_zod3.z.boolean().optional()
-  }).optional(),
-  signoff: import_zod3.z.object({
-    approver: import_zod3.z.string().optional(),
-    // uid of approver
-    approvedAt: import_zod3.z.date().optional(),
-    signoffNotes: import_zod3.z.string().optional(),
-    digitalSignature: import_zod3.z.string().optional()
-  }).optional(),
-  // Assignment
-  owner: import_zod3.z.string(),
-  // uid of TRR owner
-  reviewers: import_zod3.z.array(import_zod3.z.string()).default([]),
-  // Metadata
-  createdAt: import_zod3.z.date(),
-  updatedAt: import_zod3.z.date(),
-  createdBy: import_zod3.z.string(),
-  lastModifiedBy: import_zod3.z.string()
-});
-var TaskSchema = import_zod3.z.object({
-  id: import_zod3.z.string(),
-  title: import_zod3.z.string(),
-  description: import_zod3.z.string().optional(),
-  status: import_zod3.z.nativeEnum(TaskStatus),
-  priority: import_zod3.z.nativeEnum(Priority),
-  // Relations
-  projectId: import_zod3.z.string().optional(),
-  povId: import_zod3.z.string().optional(),
-  trrId: import_zod3.z.string().optional(),
-  parentTaskId: import_zod3.z.string().optional(),
-  dependencies: import_zod3.z.array(import_zod3.z.string()).default([]),
-  // task IDs this task depends on
-  // Assignment and timing
-  assignee: import_zod3.z.string().optional(),
-  // uid of assignee
-  estimatedHours: import_zod3.z.number().optional(),
-  actualHours: import_zod3.z.number().optional(),
-  startDate: import_zod3.z.date().optional(),
-  dueDate: import_zod3.z.date().optional(),
-  completedAt: import_zod3.z.date().optional(),
-  // Task details
-  labels: import_zod3.z.array(import_zod3.z.string()).default([]),
-  checklist: import_zod3.z.array(import_zod3.z.object({
-    id: import_zod3.z.string(),
-    text: import_zod3.z.string(),
-    completed: import_zod3.z.boolean().default(false)
-  })).default([]),
-  attachments: import_zod3.z.array(import_zod3.z.object({
-    name: import_zod3.z.string(),
-    url: import_zod3.z.string(),
-    type: import_zod3.z.string(),
-    size: import_zod3.z.number().optional()
-  })).default([]),
-  // Metadata
-  createdAt: import_zod3.z.date(),
-  updatedAt: import_zod3.z.date(),
-  createdBy: import_zod3.z.string(),
-  lastModifiedBy: import_zod3.z.string()
-});
-var NoteSchema = import_zod3.z.object({
-  id: import_zod3.z.string(),
-  title: import_zod3.z.string().optional(),
-  content: import_zod3.z.string(),
-  type: import_zod3.z.enum(["note", "meeting", "decision", "action_item", "issue"]).default("note"),
-  // Relations - at least one must be specified
-  projectId: import_zod3.z.string().optional(),
-  povId: import_zod3.z.string().optional(),
-  trrId: import_zod3.z.string().optional(),
-  taskId: import_zod3.z.string().optional(),
-  // Classification
-  tags: import_zod3.z.array(import_zod3.z.string()).default([]),
-  isPrivate: import_zod3.z.boolean().default(false),
-  isPinned: import_zod3.z.boolean().default(false),
-  // Rich content
-  mentions: import_zod3.z.array(import_zod3.z.string()).default([]),
-  // user IDs mentioned in note
-  attachments: import_zod3.z.array(import_zod3.z.object({
-    name: import_zod3.z.string(),
-    url: import_zod3.z.string(),
-    type: import_zod3.z.string()
-  })).default([]),
-  // Metadata
-  createdAt: import_zod3.z.date(),
-  updatedAt: import_zod3.z.date(),
-  createdBy: import_zod3.z.string(),
-  lastModifiedBy: import_zod3.z.string()
-});
-var TimelineEventSchema = import_zod3.z.object({
-  id: import_zod3.z.string(),
-  type: import_zod3.z.enum([
-    "project_created",
-    "project_updated",
-    "project_completed",
-    "pov_created",
-    "pov_phase_completed",
-    "pov_completed",
-    "trr_created",
-    "trr_submitted",
-    "trr_approved",
-    "task_created",
-    "task_completed",
-    "milestone_reached",
-    "note_added",
-    "team_member_added",
-    "status_changed"
-  ]),
-  title: import_zod3.z.string(),
-  description: import_zod3.z.string().optional(),
-  // Relations
-  projectId: import_zod3.z.string().optional(),
-  povId: import_zod3.z.string().optional(),
-  trrId: import_zod3.z.string().optional(),
-  taskId: import_zod3.z.string().optional(),
-  // Event details
-  actor: import_zod3.z.string(),
-  // uid of user who triggered the event
-  metadata: import_zod3.z.record(import_zod3.z.unknown()).optional(),
-  // additional event data
-  // Timing
-  timestamp: import_zod3.z.date(),
-  createdAt: import_zod3.z.date()
-});
-var calculatePOVProgress = (pov) => {
-  if (pov.phases.length === 0) return 0;
-  const completedPhases = pov.phases.filter((phase) => phase.status === "done" /* DONE */).length;
-  return Math.round(completedPhases / pov.phases.length * 100);
-};
-var calculateProjectHealth = (project, povs, trrs) => {
-  let score = 100;
-  const factors = [];
-  if (project.endDate && project.endDate < /* @__PURE__ */ new Date() && project.status !== "completed" /* COMPLETED */) {
-    score -= 30;
-    factors.push("Project overdue");
-  }
-  const atRiskPOVs = povs.filter((pov) => pov.status === "at_risk" /* AT_RISK */);
-  if (atRiskPOVs.length > 0) {
-    score -= 20 * atRiskPOVs.length;
-    factors.push(`${atRiskPOVs.length} POV(s) at risk`);
-  }
-  const highSeverityFindings = trrs.flatMap(
-    (trr) => trr.findings.filter((finding) => finding.severity === "high" || finding.severity === "critical")
-  );
-  if (highSeverityFindings.length > 0) {
-    score -= 15 * highSeverityFindings.length;
-    factors.push(`${highSeverityFindings.length} high severity finding(s)`);
-  }
-  score = Math.max(0, Math.min(100, score));
-  let health;
-  if (score >= 80) health = "good";
-  else if (score >= 60) health = "warning";
-  else health = "at_risk";
-  return { health, score, factors };
-};
-var getProjectTimeline = (project, povs, trrs, tasks) => {
-  const events = [];
-  events.push({
-    id: `${project.id}-created`,
-    type: "project_created",
-    title: "Project Created",
-    projectId: project.id,
-    actor: project.createdBy,
-    timestamp: project.createdAt,
-    createdAt: project.createdAt
-  });
-  povs.forEach((pov) => {
-    events.push({
-      id: `${pov.id}-created`,
-      type: "pov_created",
-      title: `POV Created: ${pov.title}`,
-      projectId: project.id,
-      povId: pov.id,
-      actor: pov.createdBy,
-      timestamp: pov.createdAt,
-      createdAt: pov.createdAt
-    });
-    pov.phases.filter((phase) => phase.status === "done" /* DONE */).forEach((phase) => {
-      if (phase.endDate) {
-        events.push({
-          id: `${pov.id}-phase-${phase.id}`,
-          type: "pov_phase_completed",
-          title: `POV Phase Completed: ${phase.name}`,
-          projectId: project.id,
-          povId: pov.id,
-          actor: pov.lastModifiedBy,
-          timestamp: phase.endDate,
-          createdAt: phase.endDate
-        });
-      }
-    });
-  });
-  trrs.forEach((trr) => {
-    events.push({
-      id: `${trr.id}-created`,
-      type: "trr_created",
-      title: `TRR Created: ${trr.title}`,
-      projectId: project.id,
-      trrId: trr.id,
-      actor: trr.createdBy,
-      timestamp: trr.createdAt,
-      createdAt: trr.createdAt
-    });
-    if (trr.signoff?.approvedAt) {
-      events.push({
-        id: `${trr.id}-approved`,
-        type: "trr_approved",
-        title: `TRR Approved: ${trr.title}`,
-        projectId: project.id,
-        trrId: trr.id,
-        actor: trr.signoff.approver,
-        timestamp: trr.signoff.approvedAt,
-        createdAt: trr.signoff.approvedAt
-      });
-    }
-  });
-  return events.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   CHAT_COLLECTION,
   ChatValidationRules,
   FirestoreClient,
   FirestoreQueries,
-  NoteSchema,
-  POVSchema,
-  POVStatus,
-  Priority,
-  ProjectSchema,
-  ProjectStatus,
-  ROLE_NAVIGATION,
+  RBACMiddleware,
   ROLE_PERMISSIONS,
-  TRRSchema,
-  TRRStatus,
-  TaskSchema,
-  TaskStatus,
-  TeamSchema,
-  TimelineEventSchema,
   USER_COLLECTION,
-  UserProfileSchema,
-  UserRole,
+  UserManagementService,
   UserSchema,
-  UserStatus,
   UserValidationRules,
+  app,
   auth,
   authService,
-  calculatePOVProgress,
-  calculateProjectHealth,
-  canAccessRoute,
+  calculateAvgCycleDays,
+  calculateWinRate,
   db,
+  dcContextStore,
+  fetchAnalytics,
+  fetchBlueprintSummary,
+  fetchRegionEngagements,
+  fetchUserEngagements,
   firebaseApp,
   forceReconnectEmulators,
-  getDefaultPermissions,
+  functions,
   getFirebaseConfig,
-  getProjectTimeline,
-  hasPermission,
   isMockAuthMode,
   storage,
-  useEmulator
+  useEmulator,
+  userActivityService,
+  userManagementService
 });

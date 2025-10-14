@@ -17,6 +17,22 @@ export * from './parsers/arg-parser';
 export { default as cloudStoreService, cloudStoreService as CloudStoreService } from './storage/cloud-store-service';
 export type { CloudStoredMarkdown } from './storage/cloud-store-service';
 
+// Context storage (migrated from henryreed.ai)
+export { contextStorage } from './context/context-storage';
+export type { UserContext } from './context/context-storage';
+
+// Platform settings (migrated from henryreed.ai)
+export { platformSettingsService } from './platform/platform-settings-service';
+export type {
+  PlatformEnvironment,
+  ReleaseChannel,
+  FeatureFlagDefinition,
+  FeatureFlagState,
+  EnvironmentConfig,
+  PlatformSettingsAuditEntry,
+  PlatformSettingsDocument,
+} from './platform/platform-settings-service';
+
 // Constants
 export * from './constants/app';
 export * from './constants/validation';

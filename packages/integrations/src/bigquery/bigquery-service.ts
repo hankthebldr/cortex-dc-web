@@ -3,7 +3,7 @@
  * Handles data collection, formatting, and export to GCP BigQuery via Cloud Functions
  */
 
-import { apiService } from './api-service';
+import { apiService } from '@cortex/utils';
 
 export interface BigQueryExportConfig {
   dataset: string;

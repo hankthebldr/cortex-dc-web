@@ -187,6 +187,282 @@ declare function throttle<T extends (...args: any[]) => any>(func: T, limit: num
 declare function validateEmail(email: string): boolean;
 declare function validatePassword(password: string): boolean;
 
+/**
+ * Argument Parser
+ * Simple command-line argument parser for terminal commands
+ *
+ * Migrated from henryreed.ai/hosting/lib/arg-parser.ts
+ */
+type ArgType = 'boolean' | 'string' | 'enum';
+interface ArgSpecItem {
+    flag: string;
+    type: ArgType;
+    enumValues?: string[];
+    default?: any;
+}
+type ArgSpec = ArgSpecItem[];
+interface ParsedArgs {
+    _: string[];
+    [key: string]: any;
+}
+declare function parseArgs(spec: ArgSpec, argv: string[]): ParsedArgs;
+/**
+ * Convert parsed args back to command string
+ */
+declare function argsToString(args: ParsedArgs): string;
+/**
+ * Validate args against spec
+ */
+declare function validateArgs(args: ParsedArgs, spec: ArgSpec): {
+    valid: boolean;
+    errors: string[];
+};
+
+/**
+ * Cloud Store Service
+ * Firebase Storage integration for markdown notes and documents
+ *
+ * Migrated from henryreed.ai/hosting/lib/cloud-store-service.ts
+ */
+interface CloudStoredMarkdown {
+    id: string;
+    name: string;
+    path: string;
+    size: number;
+    uploadedAt: string;
+    downloadUrl?: string;
+    content?: string;
+    metadata?: Record<string, any>;
+}
+declare class CloudStoreService {
+    private readonly STORAGE_KEY;
+    private storage;
+    private get hasWindow();
+    /**
+     * Initialize storage instance
+     */
+    initializeStorage(): Promise<void>;
+    private readLocalRecords;
+    private writeLocalRecords;
+    saveMarkdownNote(file: File, options?: {
+        metadata?: Record<string, any>;
+        contentText?: string;
+    }): Promise<CloudStoredMarkdown>;
+    getMarkdownRecord(id: string): CloudStoredMarkdown | null;
+    listMarkdownRecords(): CloudStoredMarkdown[];
+    getCallableMarkdown(id: string): (() => Promise<string>) | null;
+    /**
+     * Delete markdown record
+     */
+    deleteMarkdownRecord(id: string): boolean;
+    /**
+     * Clear all records
+     */
+    clearAllRecords(): void;
+}
+declare const cloudStoreService: CloudStoreService;
+
+/**
+ * Context Storage - Migrated from henryreed.ai
+ *
+ * Manages user session context, project requirements, and command history
+ * Uses localStorage for persistence with SSR compatibility
+ */
+/**
+ * User context for POV/engagement tracking
+ */
+interface UserContext {
+    name?: string;
+    company?: string;
+    role?: string;
+    email?: string;
+    industry?: string;
+    projectType?: string;
+    budget?: string;
+    timeline?: string;
+    techStack?: string[];
+    useCase?: string;
+    dataSize?: string;
+    currentSolution?: string;
+    challenges?: string[];
+    activeScenarios?: string[];
+    completedAssessments?: string[];
+    sessionStartTime?: Date;
+    lastActivity?: Date;
+    commandHistory?: string[];
+}
+/**
+ * Context Storage Service
+ *
+ * Provides session-based context storage with localStorage persistence
+ */
+declare class ContextStorage {
+    private context;
+    private storageKey;
+    constructor();
+    /**
+     * Store a key-value pair
+     */
+    set(key: keyof UserContext, value: any): void;
+    /**
+     * Retrieve a value by key
+     */
+    get(key: keyof UserContext): any;
+    /**
+     * Get all context data
+     */
+    getAll(): UserContext;
+    /**
+     * Update multiple values at once
+     */
+    update(updates: Partial<UserContext>): void;
+    /**
+     * Clear specific key
+     */
+    remove(key: keyof UserContext): void;
+    /**
+     * Clear all context data
+     */
+    clear(): void;
+    /**
+     * Check if a key exists
+     */
+    has(key: keyof UserContext): boolean;
+    /**
+     * Get user profile summary
+     */
+    getProfile(): {
+        name?: string;
+        company?: string;
+        role?: string;
+        email?: string;
+    };
+    /**
+     * Get project context summary
+     */
+    getProjectContext(): {
+        industry?: string;
+        projectType?: string;
+        budget?: string;
+        timeline?: string;
+        useCase?: string;
+    };
+    /**
+     * Add to array fields
+     */
+    addToArray(key: 'techStack' | 'challenges' | 'activeScenarios' | 'completedAssessments' | 'commandHistory', value: string): void;
+    /**
+     * Remove from array fields
+     */
+    removeFromArray(key: 'techStack' | 'challenges' | 'activeScenarios' | 'completedAssessments' | 'commandHistory', value: string): void;
+    /**
+     * Session management
+     */
+    startSession(): void;
+    updateActivity(): void;
+    getSessionDuration(): string;
+    /**
+     * Persistence - localStorage with SSR guard
+     */
+    private saveToStorage;
+    private loadFromStorage;
+    /**
+     * Export context for sharing/debugging
+     */
+    exportContext(): string;
+    /**
+     * Import context from JSON string
+     */
+    importContext(jsonString: string): boolean;
+}
+declare const contextStorage: ContextStorage;
+
+/**
+ * Platform Settings Service - Migrated from henryreed.ai
+ *
+ * Manages platform-wide configuration:
+ * - Feature flags
+ * - Environment configuration
+ * - Audit logging
+ *
+ * Uses localStorage for persistence with fallback to global store
+ */
+type PlatformEnvironment = 'production' | 'staging' | 'qa' | 'development';
+type ReleaseChannel = 'stable' | 'beta' | 'canary';
+interface FeatureFlagDefinition {
+    key: string;
+    name: string;
+    description: string;
+    category: 'experience' | 'analytics' | 'integrations' | 'productivity' | 'mobile';
+    defaultEnabled: boolean;
+}
+interface FeatureFlagState extends FeatureFlagDefinition {
+    enabled: boolean;
+    lastModified: string;
+    modifiedBy: string;
+}
+interface EnvironmentConfig {
+    environment: PlatformEnvironment;
+    apiBaseUrl: string;
+    analyticsDataset: string;
+    releaseChannel: ReleaseChannel;
+    maintenanceMode: boolean;
+    region: string;
+}
+interface PlatformSettingsAuditEntry {
+    id: string;
+    timestamp: string;
+    actor: string;
+    action: string;
+    message: string;
+    metadata?: Record<string, string>;
+}
+interface PlatformSettingsDocument {
+    featureFlags: FeatureFlagState[];
+    environment: EnvironmentConfig;
+    updatedAt: string;
+    updatedBy: string;
+    auditLog: PlatformSettingsAuditEntry[];
+}
+interface FeatureFlagUpdateResult {
+    flag: FeatureFlagState;
+    settings: PlatformSettingsDocument;
+}
+interface EnvironmentUpdateResult {
+    settings: PlatformSettingsDocument;
+}
+/**
+ * Platform Settings Service
+ *
+ * Centralized management of platform configuration and feature flags
+ */
+declare class PlatformSettingsService {
+    private readonly storageKey;
+    private cachedSettings;
+    private readonly defaultFlags;
+    constructor();
+    getSettings(): Promise<PlatformSettingsDocument>;
+    getSnapshot(): PlatformSettingsDocument;
+    getDefaultEnvironment(): EnvironmentConfig;
+    getFeatureFlagDefinitions(): FeatureFlagDefinition[];
+    updateFeatureFlag(key: string, enabled: boolean, actor: {
+        id: string;
+        name: string;
+    }): Promise<FeatureFlagUpdateResult>;
+    updateEnvironmentConfig(config: EnvironmentConfig, actor: {
+        id: string;
+        name: string;
+    }): Promise<EnvironmentUpdateResult>;
+    validateEnvironmentConfig(config: EnvironmentConfig): Record<string, string>;
+    private addAuditEntry;
+    private loadFromStorage;
+    private persist;
+    private createDefaultSettings;
+    private createDefaultEnvironment;
+    private clone;
+}
+declare const platformSettingsService: PlatformSettingsService;
+
 declare const APP_CONFIG: {
     readonly name: "Cortex DC Web";
     readonly version: "0.1.0";
@@ -213,4 +489,4 @@ interface FormatOptions {
     timeZone?: string;
 }
 
-export { APP_CONFIG, type AnalyticsData, type ApiResponse, type AppConfig, type CommandExecutionResult, type FormatOptions, type HealthCheckResult, type POVData, type PaginatedResponse, type ScenarioData, type TRRData, VALIDATION_RULES, type ValidationResult, api, apiService, cn, debounce, formatDate, formatRelativeTime, generateId, slugify, throttle, validateEmail, validatePassword };
+export { APP_CONFIG, type AnalyticsData, type ApiResponse, type AppConfig, type ArgSpec, type ArgSpecItem, type ArgType, cloudStoreService as CloudStoreService, type CloudStoredMarkdown, type CommandExecutionResult, type EnvironmentConfig, type FeatureFlagDefinition, type FeatureFlagState, type FormatOptions, type HealthCheckResult, type POVData, type PaginatedResponse, type ParsedArgs, type PlatformEnvironment, type PlatformSettingsAuditEntry, type PlatformSettingsDocument, type ReleaseChannel, type ScenarioData, type TRRData, type UserContext, VALIDATION_RULES, type ValidationResult, api, apiService, argsToString, cloudStoreService, cn, contextStorage, debounce, formatDate, formatRelativeTime, generateId, parseArgs, platformSettingsService, slugify, throttle, validateArgs, validateEmail, validatePassword };

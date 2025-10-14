@@ -1,6 +1,5 @@
 // XSIAM API Integration (migrated from henryreed.ai)
 export {
-  XSIAMAPIService,
   xsiamApiService,
 } from './xsiam-api-service';
 

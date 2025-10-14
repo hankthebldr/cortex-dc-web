@@ -1,0 +1,351 @@
+# Default values for cortex-dc
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global configuration
+global:
+  # Environment: development, staging, production
+  environment: production
+
+  # Domain configuration
+  domain: cortex-dc.henryreed.ai
+
+  # Image pull secrets for private registries
+  imagePullSecrets: []
+  # - name: gcr-json-key
+
+# Namespace configuration
+namespace:
+  create: true
+  name: cortex-dc
+
+# Web application (Next.js)
+web:
+  enabled: true
+
+  replicaCount: 3
+
+  image:
+    repository: gcr.io/cortex-dc-portal/cortex-web
+    pullPolicy: IfNotPresent
+    tag: "latest" # Overridden in CI/CD with commit SHA
+
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+    annotations: {}
+
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+    hosts:
+      - host: cortex-dc.henryreed.ai
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: cortex-dc-tls
+        hosts:
+          - cortex-dc.henryreed.ai
+
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Liveness and readiness probes
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  # Environment variables
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: NEXT_TELEMETRY_DISABLED
+      value: "1"
+    - name: PORT
+      value: "3000"
+    - name: HOSTNAME
+      value: "0.0.0.0"
+
+  # Secret environment variables (from Kubernetes secrets)
+  envFrom:
+    - secretRef:
+        name: cortex-web-secrets
+    - configMapRef:
+        name: cortex-web-config
+
+  # Pod security context
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+
+  # Node selector
+  nodeSelector: {}
+
+  # Tolerations
+  tolerations: []
+
+  # Affinity rules
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - cortex-web
+            topologyKey: kubernetes.io/hostname
+
+# Backend functions API
+functions:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: gcr.io/cortex-dc-portal/cortex-functions
+    pullPolicy: IfNotPresent
+    tag: "latest" # Overridden in CI/CD with commit SHA
+
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+    annotations: {}
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: PORT
+      value: "8080"
+    - name: FUNCTION_REGION
+      value: "us-central1"
+
+  envFrom:
+    - secretRef:
+        name: cortex-functions-secrets
+    - configMapRef:
+        name: cortex-functions-config
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+
+# Service account
+serviceAccount:
+  create: true
+  annotations:
+    iam.gke.io/gcp-service-account: "cortex-dc-sa@cortex-dc-portal.iam.gserviceaccount.com"
+  name: "cortex-dc-sa"
+
+# Network policies
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: ingress-nginx
+      ports:
+      - protocol: TCP
+        port: 3000
+
+  egress:
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: TCP
+        port: 443  # HTTPS to Firebase, GCP APIs
+      - protocol: TCP
+        port: 8080 # Internal service calls
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Monitoring and observability
+monitoring:
+  enabled: true
+
+  # Prometheus ServiceMonitor
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+
+  # Grafana dashboards
+  grafana:
+    enabled: true
+    dashboards:
+      - name: cortex-dc-overview
+        folder: cortex
+
+  # Alerting rules
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors per second"
+
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes / container_spec_memory_limit_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+# ConfigMaps
+configMaps:
+  web:
+    NEXT_PUBLIC_API_URL: "https://api.cortex-dc.henryreed.ai"
+    LOG_LEVEL: "info"
+    ENABLE_ANALYTICS: "true"
+
+  functions:
+    LOG_LEVEL: "info"
+    CORS_ALLOWED_ORIGINS: "https://cortex-dc.henryreed.ai"
+
+# Secrets (managed externally via Google Secret Manager)
+secrets:
+  web:
+    # Reference to Google Secret Manager
+    googleSecretManager:
+      enabled: true
+      projectId: "cortex-dc-portal"
+      secrets:
+        - name: NEXT_PUBLIC_FIREBASE_API_KEY
+          key: firebase-api-key
+        - name: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+          key: firebase-auth-domain
+        - name: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+          key: firebase-project-id
+
+  functions:
+    googleSecretManager:
+      enabled: true
+      projectId: "cortex-dc-portal"
+      secrets:
+        - name: FIREBASE_SERVICE_ACCOUNT
+          key: firebase-service-account
+        - name: GEMINI_API_KEY
+          key: gemini-api-key
+
+# Backup and disaster recovery
+backup:
+  enabled: false
+  schedule: "0 2 * * *"
+  retention: 30
+
+# Cost optimization
+costOptimization:
+  # Use preemptible nodes for non-production
+  preemptibleNodes: false
+
+  # Enable cluster autoscaling
+  clusterAutoscaling: true
+
+  # Resource quotas
+  resourceQuota:
+    enabled: false
+    hard:
+      requests.cpu: "10"
+      requests.memory: 20Gi
+      limits.cpu: "20"
+      limits.memory: 40Gi

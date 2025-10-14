@@ -1,0 +1,34 @@
+apiVersion: v2
+name: cortex-dc
+description: Cortex Domain Consultant Web Platform - GKE Helm Chart
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - cortex
+  - domain-consultant
+  - palo-alto
+  - xsiam
+  - security
+
+home: https://github.com/hankthebldr/cortex-dc-web
+sources:
+  - https://github.com/hankthebldr/cortex-dc-web
+
+maintainers:
+  - name: Henry Reed
+    email: henry@henryreed.ai
+
+# Dependencies (optional)
+# dependencies:
+#   - name: postgresql
+#     version: "12.x.x"
+#     repository: "https://charts.bitnami.com/bitnami"
+#     condition: postgresql.enabled
+#   - name: redis
+#     version: "17.x.x"
+#     repository: "https://charts.bitnami.com/bitnami"
+#     condition: redis.enabled
+
+icon: https://raw.githubusercontent.com/hankthebldr/cortex-dc-web/main/apps/web/public/favicon.ico

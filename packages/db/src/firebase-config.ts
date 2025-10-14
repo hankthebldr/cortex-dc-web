@@ -6,6 +6,7 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, Auth } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator, Firestore } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator, FirebaseStorage } from 'firebase/storage';
+import { getFunctions, connectFunctionsEmulator, Functions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -57,6 +58,7 @@ function getFirebaseApp(): FirebaseApp | null {
 let _auth: Auth | null = null;
 let _db: Firestore | null = null;
 let _storage: FirebaseStorage | null = null;
+let _functions: Functions | null = null;
 let _app: FirebaseApp | null = null;
 let _emulatorsConnected = false;
 
@@ -84,6 +86,12 @@ function connectEmulators() {
         const storageHost = process.env.NEXT_PUBLIC_STORAGE_EMULATOR_HOST || 'localhost';
         const storagePort = parseInt(process.env.NEXT_PUBLIC_STORAGE_EMULATOR_PORT || '9199');
         connectStorageEmulator(_storage, storageHost, storagePort);
+      }
+
+      if (_functions) {
+        const functionsHost = process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_HOST || 'localhost';
+        const functionsPort = parseInt(process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_PORT || '5001');
+        connectFunctionsEmulator(_functions, functionsHost, functionsPort);
       }
 
       _emulatorsConnected = true;
@@ -148,6 +156,25 @@ export const storage = new Proxy({} as FirebaseStorage, {
       connectEmulators();
     }
     return (_storage as any)[prop];
+  },
+});
+
+/**
+ * Firebase Functions instance
+ * Lazy-loaded via Proxy pattern for optimal performance
+ */
+export const functions = new Proxy({} as Functions, {
+  get(target, prop) {
+    if (!_functions) {
+      const app = getFirebaseApp();
+      if (!app) {
+        console.warn('Firebase app not available, functions will be limited');
+        return null;
+      }
+      _functions = getFunctions(app);
+      connectEmulators();
+    }
+    return (_functions as any)[prop];
   },
 });
 
