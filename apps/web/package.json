@@ -5,10 +5,16 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:local": "TARGET_ENV=local NODE_ENV=production next build",
+    "build:k8s": "TARGET_ENV=k8s NODE_ENV=production next build",
+    "build:firebase": "TARGET_ENV=firebase NODE_ENV=production next build",
     "export": "next export",
     "start": "next start",
+    "start:local": "TARGET_ENV=local NODE_ENV=production next start",
+    "start:prod": "TARGET_ENV=k8s NODE_ENV=production node server.js",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "validate:env": "tsx ../../scripts/env/resolve-env.ts"
   },
   "dependencies": {
     "@cortex-dc/ui": "workspace:*",

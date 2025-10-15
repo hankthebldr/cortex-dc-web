@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-service
+  namespace: cortex-dc
+  labels:
+    app: cortex-web
+    component: frontend
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "web-backend-config"}'
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hours
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: http
+    protocol: TCP
+  selector:
+    app: cortex-web
+    component: frontend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-service-headless
+  namespace: cortex-dc
+  labels:
+    app: cortex-web
+    component: frontend
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: http
+    port: 3000
+    targetPort: http
+    protocol: TCP
+  selector:
+    app: cortex-web
+    component: frontend

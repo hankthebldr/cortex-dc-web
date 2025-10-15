@@ -49,21 +49,28 @@ COPY --from=deps /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY . .
 
 # Build arguments for environment configuration
+ARG TARGET_ENV=k8s
+ARG NODE_ENV=production
+ARG APP_BASE_URL
+ARG API_BASE_URL
+
+# Firebase config (optional, only needed for firebase target)
 ARG NEXT_PUBLIC_FIREBASE_API_KEY
 ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
 ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID
 ARG NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
 ARG NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 ARG NEXT_PUBLIC_FIREBASE_APP_ID
-ARG NEXT_PUBLIC_API_URL
-ARG NODE_ENV=production
 
-# Set environment variables
+# Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=${NODE_ENV}
+ENV TARGET_ENV=${TARGET_ENV}
+ENV APP_BASE_URL=${APP_BASE_URL}
+ENV API_BASE_URL=${API_BASE_URL}
 
 # Build all packages and the web application
-RUN pnpm run build
+RUN pnpm run build:${TARGET_ENV}
 
 # ====================
 # Stage 3: Runner
@@ -92,6 +99,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 # Runtime environment variables
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV TARGET_ENV=k8s
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 

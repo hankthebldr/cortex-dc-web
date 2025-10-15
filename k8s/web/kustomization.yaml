@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cortex-dc
+
+resources:
+- namespace.yaml
+- configmap.yaml
+- serviceaccount.yaml
+- deployment.yaml
+- service.yaml
+- ingress.yaml
+- hpa.yaml
+
+# NOTE: Create secrets.yaml from secrets.yaml.template before applying
+# - secrets.yaml
+
+commonLabels:
+  app.kubernetes.io/name: cortex-web
+  app.kubernetes.io/part-of: cortex-dc-platform
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+- name: gcr.io/cortex-dc-project/cortex-web
+  newTag: latest
+
+configMapGenerator:
+- name: web-config
+  behavior: merge
+  literals:
+  - BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+generatorOptions:
+  disableNameSuffixHash: true

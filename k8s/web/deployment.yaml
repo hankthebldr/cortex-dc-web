@@ -1,0 +1,189 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  namespace: cortex-dc
+  labels:
+    app: cortex-web
+    component: frontend
+    tier: frontend
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: cortex-web
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: cortex-web
+        component: frontend
+        tier: frontend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/api/metrics"
+    spec:
+      serviceAccountName: web-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+      - name: web
+        image: gcr.io/cortex-dc-project/cortex-web:latest
+        imagePullPolicy: Always
+
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+
+        env:
+        # Target environment
+        - name: TARGET_ENV
+          value: "k8s"
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        - name: HOSTNAME
+          value: "0.0.0.0"
+
+        # Application URLs (REQUIRED - set these in your environment)
+        - name: APP_BASE_URL
+          value: "https://cortex.example.com"  # UPDATE THIS
+        - name: API_BASE_URL
+          value: "http://functions-service/api"  # Internal service URL
+
+        # Configuration from ConfigMap
+        - name: APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: web-config
+              key: APP_VERSION
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: web-config
+              key: LOG_LEVEL
+        - name: ENABLE_ANALYTICS
+          valueFrom:
+            configMapKeyRef:
+              name: web-config
+              key: ENABLE_ANALYTICS
+        - name: CORS_ORIGIN
+          valueFrom:
+            configMapKeyRef:
+              name: web-config
+              key: CORS_ORIGIN
+
+        # Secrets
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: web-secrets
+              key: JWT_SECRET
+        - name: SESSION_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: web-secrets
+              key: SESSION_SECRET
+
+        # Firebase Configuration (optional, for Firebase backend)
+        - name: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+          valueFrom:
+            secretKeyRef:
+              name: web-secrets
+              key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+              optional: true
+
+        # GCP Credentials (if needed)
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /var/secrets/google/key.json
+
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+
+        # Probes for health checking
+        livenessProbe:
+          httpGet:
+            path: /api/healthz
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /api/readyz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 12
+
+        volumeMounts:
+        - name: google-credentials
+          mountPath: /var/secrets/google
+          readOnly: true
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: google-credentials
+        secret:
+          secretName: web-gcp-credentials
+          items:
+          - key: key.json
+            path: key.json
+          optional: true
+
+      # Pod anti-affinity for high availability
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - cortex-web
+              topologyKey: kubernetes.io/hostname
+
+      terminationGracePeriodSeconds: 30

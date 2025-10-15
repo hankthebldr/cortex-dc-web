@@ -1,0 +1,183 @@
+# Docker Compose for Local Development (Non-Firebase)
+# This configuration provides a self-contained local environment
+# without Firebase dependencies for testing K8s-like deployments locally
+
+version: '3.9'
+
+services:
+  # ======================
+  # Web Application
+  # ======================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        TARGET_ENV: local
+        NODE_ENV: production
+        APP_BASE_URL: http://localhost:3000
+        API_BASE_URL: http://localhost:3000/api
+    image: cortex-web:local
+    container_name: cortex-web-local
+    ports:
+      - "3000:3000"
+    environment:
+      - TARGET_ENV=local
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - APP_BASE_URL=http://localhost:3000
+      - API_BASE_URL=http://localhost:3000/api
+      - ENABLE_ANALYTICS=false
+      - ENABLE_TELEMETRY=false
+      # Add other env vars as needed
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - cortex-local
+    restart: unless-stopped
+
+  # ======================
+  # PostgreSQL Database
+  # (Optional - for self-hosted mode)
+  # ======================
+  postgres:
+    image: postgres:16-alpine
+    container_name: cortex-postgres-local
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=cortex
+      - POSTGRES_USER=cortex
+      - POSTGRES_PASSWORD=cortex_dev_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cortex"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cortex-local
+    restart: unless-stopped
+    profiles:
+      - self-hosted
+
+  # ======================
+  # Redis Cache
+  # (Optional - for session storage)
+  # ======================
+  redis:
+    image: redis:7-alpine
+    container_name: cortex-redis-local
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - cortex-local
+    restart: unless-stopped
+    profiles:
+      - self-hosted
+
+  # ======================
+  # MinIO Object Storage
+  # (Optional - for Firebase Storage replacement)
+  # ======================
+  minio:
+    image: minio/minio:latest
+    container_name: cortex-minio-local
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - cortex-local
+    restart: unless-stopped
+    profiles:
+      - self-hosted
+
+  # ======================
+  # NGINX Reverse Proxy
+  # (Optional - simulates Ingress locally)
+  # ======================
+  nginx:
+    image: nginx:alpine
+    container_name: cortex-nginx-local
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx/nginx.local.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - web
+    networks:
+      - cortex-local
+    restart: unless-stopped
+    profiles:
+      - proxy
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  cortex-local:
+    driver: bridge
+    name: cortex-local-network
+
+# ======================
+# Usage Instructions
+# ======================
+# Start web app only:
+#   docker-compose -f docker-compose.local.yml up -d
+#
+# Start with full self-hosted stack (Postgres, Redis, MinIO):
+#   docker-compose -f docker-compose.local.yml --profile self-hosted up -d
+#
+# Start with NGINX reverse proxy:
+#   docker-compose -f docker-compose.local.yml --profile proxy up -d
+#
+# Build and start:
+#   docker-compose -f docker-compose.local.yml up --build -d
+#
+# View logs:
+#   docker-compose -f docker-compose.local.yml logs -f
+#
+# Stop all services:
+#   docker-compose -f docker-compose.local.yml down
+#
+# Stop and remove volumes:
+#   docker-compose -f docker-compose.local.yml down -v
+#
+# Access web app:
+#   http://localhost:3000
+#
+# Access MinIO console (if using self-hosted profile):
+#   http://localhost:9001 (minioadmin/minioadmin)

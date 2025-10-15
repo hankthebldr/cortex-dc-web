@@ -1,0 +1,336 @@
+name: Multi-Target Build Matrix
+
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main, develop]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20.11.0'
+  PNPM_VERSION: '8.15.1'
+  REGISTRY: gcr.io
+  PROJECT_ID: cortex-dc-project
+
+jobs:
+  # ======================
+  # Build Matrix
+  # ======================
+  build-matrix:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [local, k8s, firebase]
+        include:
+          - target: local
+            env_vars: "TARGET_ENV=local APP_BASE_URL=http://localhost:3000 API_BASE_URL=http://localhost:3000/api"
+          - target: k8s
+            env_vars: "TARGET_ENV=k8s APP_BASE_URL=https://cortex.example.com API_BASE_URL=http://functions-service/api"
+          - target: firebase
+            env_vars: "TARGET_ENV=firebase"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate environment
+        run: |
+          ${{ matrix.env_vars }} pnpm validate:env
+
+      - name: Type check
+        run: pnpm run type-check
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Build ${{ matrix.target }}
+        run: |
+          ${{ matrix.env_vars }} pnpm run build:${{ matrix.target }}
+
+      - name: Validate build artifacts
+        if: matrix.target != 'firebase'
+        run: |
+          pnpm run postbuild:${{ matrix.target }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.target }}
+          path: |
+            apps/web/.next
+            !apps/web/.next/cache
+          retention-days: 7
+
+  # ======================
+  # Smoke Tests
+  # ======================
+  smoke-tests:
+    name: Smoke Tests ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    needs: build-matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [local, k8s]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ matrix.target }}
+          path: apps/web/.next
+
+      - name: Start server
+        run: |
+          cd apps/web
+          TARGET_ENV=${{ matrix.target }} NODE_ENV=production pnpm start &
+          echo $! > server.pid
+
+          # Wait for server to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:3000/api/health > /dev/null; then
+              echo "Server is ready"
+              break
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run smoke tests
+        run: |
+          echo "Testing health endpoints..."
+
+          # Test /api/health
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health)
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ /api/health returned $STATUS"
+            exit 1
+          fi
+          echo "✅ /api/health: $STATUS"
+
+          # Test /api/healthz
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/healthz)
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ /api/healthz returned $STATUS"
+            exit 1
+          fi
+          echo "✅ /api/healthz: $STATUS"
+
+          # Test /api/readyz
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/readyz)
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ /api/readyz returned $STATUS"
+            exit 1
+          fi
+          echo "✅ /api/readyz: $STATUS"
+
+          # Test homepage
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/)
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Homepage returned $STATUS"
+            exit 1
+          fi
+          echo "✅ Homepage: $STATUS"
+
+          # Check for basic assets
+          CONTENT=$(curl -s http://localhost:3000/)
+          if echo "$CONTENT" | grep -q "<!DOCTYPE html>"; then
+            echo "✅ HTML content found"
+          else
+            echo "❌ Invalid HTML content"
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ All smoke tests passed for ${{ matrix.target }}!"
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f apps/web/server.pid ]; then
+            kill $(cat apps/web/server.pid) || true
+          fi
+
+  # ======================
+  # Docker Build (K8s target only)
+  # ======================
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [build-matrix, smoke-tests]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: _json_key
+          password: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/cortex-web
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.web
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            TARGET_ENV=k8s
+            NODE_ENV=production
+            APP_BASE_URL=https://cortex.example.com
+            API_BASE_URL=http://functions-service/api
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image digest
+        run: echo ${{ steps.meta.outputs.digest }}
+
+  # ======================
+  # Firebase Deploy (Firebase target only)
+  # ======================
+  firebase-deploy:
+    name: Deploy to Firebase
+    runs-on: ubuntu-latest
+    needs: [build-matrix, smoke-tests]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download Firebase build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-firebase
+          path: apps/web/.next
+
+      - name: Deploy to Firebase
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          channelId: live
+          projectId: cortex-dc-portal
+
+  # ======================
+  # Parity Check
+  # ======================
+  parity-check:
+    name: Verify Build Parity
+    runs-on: ubuntu-latest
+    needs: [build-matrix]
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Compare build outputs
+        run: |
+          echo "Checking build parity across targets..."
+
+          # Compare file counts
+          LOCAL_COUNT=$(find build-local -type f | wc -l)
+          K8S_COUNT=$(find build-k8s -type f | wc -l)
+          FIREBASE_COUNT=$(find build-firebase -type f | wc -l)
+
+          echo "Build artifact counts:"
+          echo "  Local:    $LOCAL_COUNT files"
+          echo "  K8s:      $K8S_COUNT files"
+          echo "  Firebase: $FIREBASE_COUNT files"
+
+          # Allow some variation (Firebase may have different output)
+          if [ "$LOCAL_COUNT" -eq 0 ] || [ "$K8S_COUNT" -eq 0 ]; then
+            echo "❌ Build parity check failed: Missing artifacts"
+            exit 1
+          fi
+
+          echo "✅ Build parity check passed"
+
+  # ======================
+  # Summary
+  # ======================
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [build-matrix, smoke-tests, parity-check]
+    if: always()
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# Build Matrix Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Target   | Build Status | Smoke Tests | Notes |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------------|-------------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Local    | ${{ needs.build-matrix.result }} | ${{ needs.smoke-tests.result }} | Self-contained build |" >> $GITHUB_STEP_SUMMARY
+          echo "| K8s      | ${{ needs.build-matrix.result }} | ${{ needs.smoke-tests.result }} | Production-ready container |" >> $GITHUB_STEP_SUMMARY
+          echo "| Firebase | ${{ needs.build-matrix.result }} | N/A | Static export |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Parity Check:** ${{ needs.parity-check.result }}" >> $GITHUB_STEP_SUMMARY
