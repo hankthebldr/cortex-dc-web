@@ -1,46 +1,66 @@
 /**
- * Custom Render Function for Testing
- * Wraps components with necessary providers for testing
+ * Custom render utilities for testing UI components
+ * Wraps React Testing Library's render with common providers
  */
 
-import { ReactElement, ReactNode } from 'react';
-import { render, RenderOptions } from '@testing-library/react';
-import { MantineProvider } from '@mantine/core';
+import * as React from 'react';
+import { render as rtlRender, RenderOptions } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 /**
- * All providers needed for testing UI components
+ * Theme provider for components that need theme context
  */
-interface AllProvidersProps {
-  children: ReactNode;
+interface ThemeProviderProps {
+  children: React.ReactNode;
+  theme?: 'light' | 'dark';
 }
 
-const AllProviders = ({ children }: AllProvidersProps) => {
-  return (
-    <MantineProvider>
-      {children}
-    </MantineProvider>
-  );
-};
+function ThemeProvider({ children, theme = 'light' }: ThemeProviderProps) {
+  React.useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
+  return <>{children}</>;
+}
 
 /**
- * Custom render function that includes all necessary providers
- * Use this instead of @testing-library/react's render
- *
- * @example
- * import { render, screen } from '@/test-utils/render';
- *
- * test('component renders', () => {
- *   render(<MyComponent />);
- *   expect(screen.getByText('Hello')).toBeInTheDocument();
- * });
+ * Wrapper for all providers needed in tests
  */
-const customRender = (
-  ui: ReactElement,
-  options?: Omit<RenderOptions, 'wrapper'>
-) => render(ui, { wrapper: AllProviders, ...options });
+interface AllProvidersProps {
+  children: React.ReactNode;
+  theme?: 'light' | 'dark';
+}
 
-// Re-export everything from React Testing Library
+function AllProviders({ children, theme }: AllProvidersProps) {
+  return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
+}
+
+/**
+ * Custom render options
+ */
+interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
+  theme?: 'light' | 'dark';
+}
+
+/**
+ * Custom render function that includes common providers
+ */
+export function render(
+  ui: React.ReactElement,
+  { theme, ...options }: CustomRenderOptions = {}
+) {
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <AllProviders theme={theme}>{children}</AllProviders>
+  );
+
+  const result = rtlRender(ui, { wrapper: Wrapper, ...options });
+  const user = userEvent.setup();
+
+  return {
+    ...result,
+    user,
+  };
+}
+
 export * from '@testing-library/react';
-
-// Override render with our custom version
-export { customRender as render };
+export { userEvent };
