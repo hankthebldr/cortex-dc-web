@@ -1,0 +1,20 @@
+# Development Environment Configuration
+# Copy this file to terraform.tfvars and customize
+
+project_id = "cortex-dc-portal"
+region     = "us-central1"
+zone       = "us-central1-a"
+
+# GKE Configuration
+# cluster_machine_type = "e2-standard-4"
+# cluster_min_nodes    = 1
+# cluster_max_nodes    = 3
+
+# Database Configuration
+# db_tier              = "db-custom-2-7680"
+# db_disk_size         = 50
+# db_backup_enabled    = true
+
+# Feature Flags
+# enable_monitoring    = false
+# enable_spot_nodes    = true

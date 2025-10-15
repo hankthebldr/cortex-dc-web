@@ -1,7 +1,6 @@
 /**
- * Test Utilities
- * Re-export all test utilities for easy import
+ * Test utilities for UI component testing
  */
 
 export * from './render';
-export * from './factories';
+export * from './axe';
