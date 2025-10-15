@@ -1,0 +1,206 @@
+# OWASP ZAP Configuration for Cortex DC Web
+# https://www.zaproxy.org/docs/
+
+env:
+  # Context definition
+  contexts:
+    - name: "Cortex DC Web"
+      urls:
+        - "http://localhost:3000"
+      includePaths:
+        - "http://localhost:3000/.*"
+      excludePaths:
+        # Exclude static assets and build artifacts
+        - "http://localhost:3000/_next/static/.*"
+        - "http://localhost:3000/static/.*"
+        - "http://localhost:3000/.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf)$"
+        # Exclude logout to prevent unintended logouts during scan
+        - "http://localhost:3000/api/auth/logout"
+        - "http://localhost:3000/logout"
+
+      # Authentication configuration
+      authentication:
+        method: "json"
+        parameters:
+          loginUrl: "http://localhost:3000/api/auth/login"
+          loginRequestData: '{"email":"{%username%}","password":"{%password%}"}'
+        verification:
+          method: "response"
+          loggedInRegex: '\\Q{"success":true}\\E'
+          loggedOutRegex: '\\Q401\\E|\\Q"error"\\E'
+
+      # Session management
+      sessionManagement:
+        method: "cookie"
+        parameters:
+          cookieName: "session"
+
+      # Technology detection
+      technology:
+        exclude:
+          - "SCM"
+
+      # Test users
+      users:
+        - name: "test-admin"
+          credentials:
+            username: "admin@cortex.com"
+            password: "admin123"
+        - name: "test-user"
+          credentials:
+            username: "user@cortex.com"
+            password: "user123"
+
+  # Parameters to ignore
+  parameters:
+    # Don't scan these parameters
+    exclude:
+      - "__NEXT_DATA__"
+      - "_next"
+      - "buildId"
+
+# Scanner configuration
+scanners:
+  # Passive scanner (always runs)
+  - name: "passiveScan"
+    enabled: true
+
+  # Active scanner (more aggressive)
+  - name: "activeScan"
+    policy: "Default Policy"
+    strength: "MEDIUM"
+    alertThreshold: "MEDIUM"
+    maxRuleDurationInMins: 10
+    maxScanDurationInMins: 30
+
+# Scan rules configuration
+rules:
+  # High priority rules
+  - id: 10021
+    name: "X-Content-Type-Options Header Missing"
+    threshold: "MEDIUM"
+  - id: 10020
+    name: "X-Frame-Options Header Not Set"
+    threshold: "MEDIUM"
+  - id: 10098
+    name: "Cross-Domain Misconfiguration"
+    threshold: "MEDIUM"
+  - id: 10109
+    name: "Modern Web Application"
+    threshold: "INFO"
+  - id: 10055
+    name: "CSP Header Not Set"
+    threshold: "MEDIUM"
+  - id: 10056
+    name: "X-Debug-Token Information Leak"
+    threshold: "LOW"
+
+  # Authentication & Session Management
+  - id: 10202
+    name: "Absence of Anti-CSRF Tokens"
+    threshold: "MEDIUM"
+  - id: 10010
+    name: "Cookie No HttpOnly Flag"
+    threshold: "LOW"
+  - id: 10011
+    name: "Cookie Without Secure Flag"
+    threshold: "LOW"
+  - id: 10054
+    name: "Cookie Without SameSite Attribute"
+    threshold: "LOW"
+
+  # Information Disclosure
+  - id: 10023
+    name: "Information Disclosure - Debug Error Messages"
+    threshold: "LOW"
+  - id: 10024
+    name: "Information Disclosure - Sensitive Information in URL"
+    threshold: "INFO"
+  - id: 10025
+    name: "Information Disclosure - Sensitive Information in HTTP Referrer Header"
+    threshold: "INFO"
+
+  # Injection Vulnerabilities
+  - id: 40012
+    name: "Cross Site Scripting (Reflected)"
+    threshold: "MEDIUM"
+  - id: 40014
+    name: "Cross Site Scripting (Persistent)"
+    threshold: "MEDIUM"
+  - id: 40018
+    name: "SQL Injection"
+    threshold: "MEDIUM"
+  - id: 90019
+    name: "Server Side Code Injection"
+    threshold: "MEDIUM"
+  - id: 90020
+    name: "Remote OS Command Injection"
+    threshold: "MEDIUM"
+
+  # Configuration Issues
+  - id: 10015
+    name: "Re-examine Cache-control Directives"
+    threshold: "INFO"
+  - id: 10017
+    name: "Cross-Domain JavaScript Source File Inclusion"
+    threshold: "LOW"
+  - id: 10027
+    name: "Information Disclosure - Suspicious Comments"
+    threshold: "INFO"
+
+# Alert filters
+alertFilters:
+  # Exclude certain false positives
+  - ruleId: 10015
+    url: ".*/_next/.*"
+    parameter: ""
+    evidence: ""
+    enabled: true
+
+  - ruleId: 10017
+    url: ".*/_next/.*"
+    parameter: ""
+    evidence: ""
+    enabled: true
+
+# Spider configuration
+spider:
+  maxDuration: 10
+  maxChildren: 20
+  recurse: true
+  subtreeOnly: false
+  acceptCookies: true
+
+# Ajax Spider configuration
+ajaxSpider:
+  maxDuration: 10
+  maxCrawlDepth: 5
+  numberOfBrowsers: 1
+  inScope: true
+
+# Reporting
+report:
+  format:
+    - html
+    - json
+    - xml
+  outputDir: "./zap-reports"
+  confidenceThreshold: "LOW"
+  riskThreshold: "INFO"
+
+# Additional options
+options:
+  # Max alerts per rule
+  maxAlerts: 100
+
+  # Scan policy
+  scanPolicy:
+    # Default policy with medium strength
+    name: "Default Policy"
+    threshold: "MEDIUM"
+    strength: "MEDIUM"
+
+  # API scan settings
+  apiScan:
+    format: "openapi"
+    targetUrl: "http://localhost:3000/api"

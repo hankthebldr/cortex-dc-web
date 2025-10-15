@@ -18,7 +18,7 @@ import {
   User as FirebaseUser,
   IdTokenResult,
 } from 'firebase/auth';
-import { auth } from '../firebase-config';
+import { auth } from '../legacy/firebase-config';
 import {
   AuthAdapter,
   AuthUser,

@@ -25,8 +25,18 @@
     "seed:data": "RUN_DIRECT=1 tsx packages/admin-tools/src/seedData.ts",
     "test:e2e": "playwright test -c tests/e2e/playwright.config.ts",
     "test:e2e:ui": "playwright test -c tests/e2e/playwright.config.ts --ui",
+    "test:e2e:headed": "playwright test -c tests/e2e/playwright.config.ts --headed",
+    "test:e2e:debug": "playwright test -c tests/e2e/playwright.config.ts --debug",
     "e2e:local": "E2E_BASE_URL=http://localhost:3000 pnpm test:e2e",
-    "report:e2e": "npx playwright show-report"
+    "report:e2e": "npx playwright show-report",
+    "test:lighthouse": "lhci autorun",
+    "test:security": "docker run -v $(pwd):/zap/wrk:rw owasp/zap2docker-stable zap-baseline.py -t http://host.docker.internal:3000 -r zap-report.html",
+    "test:security:full": "docker run -v $(pwd):/zap/wrk:rw owasp/zap2docker-stable zap-full-scan.py -t http://host.docker.internal:3000 -r zap-full-report.html",
+    "test:performance": "tsx scripts/performance/webpagetest.ts",
+    "test:all": "pnpm test && pnpm test:e2e && pnpm test:lighthouse",
+    "audit:security": "pnpm audit --audit-level=moderate && snyk test",
+    "audit:performance": "pnpm test:lighthouse",
+    "audit:dependencies": "pnpm audit && pnpm outdated"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.0",

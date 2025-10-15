@@ -22,7 +22,7 @@ import {
   runTransaction,
   getCountFromServer,
 } from 'firebase/firestore';
-import { db } from '../firebase-config';
+import { db } from '../legacy/firebase-config';
 import {
   DatabaseAdapter,
   DatabaseTransaction,

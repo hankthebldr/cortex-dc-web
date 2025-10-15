@@ -34,7 +34,7 @@ export class FirebaseStorageAdapter implements StorageAdapter {
     if (this.initialized) return;
 
     try {
-      const { storage } = await import('../firebase-config');
+      const { storage } = await import('../legacy/firebase-config');
       if (storage) {
         this.storage = storage;
         this.initialized = true;

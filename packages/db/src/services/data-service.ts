@@ -1,11 +1,18 @@
-'use client';
+/**
+ * Data Service for Analytics and Engagement Tracking (Refactored)
+ * Uses database adapter for multi-backend support
+ *
+ * CHANGES FROM ORIGINAL:
+ * - Removed direct Firebase Firestore imports
+ * - Uses getDatabase() adapter instead of direct 'db' access
+ * - Removed Firebase Timestamp - uses standard Date objects
+ * - Works with any backend (Firebase, Postgres, etc.)
+ *
+ * NOTE: Can be used on both client and server
+ */
 
-// Data service for analytics and engagement tracking
-// Migrated from henryreed.ai/hosting/lib/data-service.ts
-// Provides Firestore queries for DC engagements and OKRs
-
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
-import { db } from '../firebase-config';
+import { getDatabase } from '../adapters/database.factory';
+import type { DatabaseAdapter } from '../adapters/database.adapter';
 
 export type AnalyticsFilters = {
   region?: string; // AMER | EMEA | APJ | GLOBAL
@@ -31,7 +38,7 @@ export type EngagementRecord = {
 export type AnalyticsResult = {
   records: EngagementRecord[];
   okrs: { id: string; name: string; progress: number }[];
-  source: 'firestore' | 'mock' | 'empty';
+  source: 'database' | 'mock' | 'empty';
 };
 
 export type BlueprintSummary = {
@@ -41,11 +48,11 @@ export type BlueprintSummary = {
   trrWins: number;
   trrLosses: number;
   avgCycleDays: number;
-  source: 'firestore' | 'mock' | 'empty';
+  source: 'database' | 'mock' | 'empty';
 };
 
 /**
- * Fetch analytics data from Firestore with optional filters
+ * Fetch analytics data from database with optional filters
  * @param filters - Region, theatre, user, and time range filters
  * @returns Analytics data including engagement records and OKRs
  */
@@ -54,83 +61,108 @@ export async function fetchAnalytics(filters: AnalyticsFilters): Promise<Analyti
   const since = new Date(Date.now() - sinceDays * 86400000);
 
   try {
-    // Build base collection query
-    const col = collection(db as any, 'dc_engagements');
-    const constraints: any[] = [];
+    const db = getDatabase();
+
+    // Build query filters
+    const queryFilters: any[] = [];
 
     // Add time range filter
-    constraints.push(where('createdAt', '>=', Timestamp.fromDate(since)));
+    queryFilters.push({
+      field: 'createdAt',
+      operator: '>=',
+      value: since
+    });
 
     // Add optional filters
     if (filters.region && filters.region !== 'GLOBAL') {
-      constraints.push(where('region', '==', filters.region));
+      queryFilters.push({
+        field: 'region',
+        operator: '==',
+        value: filters.region
+      });
     }
     if (filters.theatre && filters.theatre !== 'all') {
-      constraints.push(where('theatre', '==', filters.theatre));
+      queryFilters.push({
+        field: 'theatre',
+        operator: '==',
+        value: filters.theatre
+      });
     }
     if (filters.user && filters.user !== 'all') {
-      constraints.push(where('user', '==', filters.user));
+      queryFilters.push({
+        field: 'user',
+        operator: '==',
+        value: filters.user
+      });
     }
 
-    let q = query(col, ...constraints);
-    let snap = await getDocs(q);
+    // Execute query
+    let engagements = await db.findMany('dc_engagements', {
+      filters: queryFilters,
+      orderBy: 'createdAt',
+      orderDirection: 'desc'
+    });
 
-    // Fallback if query fails due to missing index
-    if (snap.empty && constraints.length > 1) {
+    // Fallback if query fails or returns empty due to missing index
+    if (engagements.length === 0 && queryFilters.length > 1) {
       console.warn('Query with filters returned empty, falling back to date-only filter');
-      q = query(col, where('createdAt', '>=', Timestamp.fromDate(since)));
-      snap = await getDocs(q);
+      engagements = await db.findMany('dc_engagements', {
+        filters: [queryFilters[0]], // Just the date filter
+        orderBy: 'createdAt',
+        orderDirection: 'desc'
+      });
     }
 
-    // Transform Firestore documents to typed records
-    const records: EngagementRecord[] = snap.docs.map((d) => {
-      const v: any = d.data();
-      const createdAt = v.createdAt?.toDate
-        ? v.createdAt.toDate()
-        : new Date(v.createdAt || Date.now());
-      const completedAt = v.completedAt?.toDate
-        ? v.completedAt.toDate()
-        : v.completedAt
-        ? new Date(v.completedAt)
+    // Transform database documents to typed records
+    const records: EngagementRecord[] = engagements.map((doc: any) => {
+      // Handle date conversion (supports both Firestore Timestamp and Date objects)
+      const createdAt = doc.createdAt instanceof Date
+        ? doc.createdAt
+        : doc.createdAt?.toDate
+        ? doc.createdAt.toDate()
+        : new Date(doc.createdAt || Date.now());
+
+      const completedAt = doc.completedAt instanceof Date
+        ? doc.completedAt
+        : doc.completedAt?.toDate
+        ? doc.completedAt.toDate()
+        : doc.completedAt
+        ? new Date(doc.completedAt)
         : null;
 
       // Calculate cycle days if not provided
-      const cycleDays =
-        v.cycleDays ??
+      const cycleDays = doc.cycleDays ??
         (completedAt
           ? Math.max(0, Math.round((completedAt.getTime() - createdAt.getTime()) / 86400000))
           : undefined);
 
       return {
-        region: v.region || 'UNKNOWN',
-        theatre: v.theatre || 'UNKNOWN',
-        user: (v.user || 'unknown').toLowerCase(),
-        location: v.location || 'N/A',
-        customer: v.customer || 'unknown',
+        region: doc.region || 'UNKNOWN',
+        theatre: doc.theatre || 'UNKNOWN',
+        user: (doc.user || 'unknown').toLowerCase(),
+        location: doc.location || 'N/A',
+        customer: doc.customer || 'unknown',
         createdAt,
         completedAt,
-        scenariosExecuted: v.scenariosExecuted ?? 0,
-        detectionsValidated: v.detectionsValidated ?? 0,
-        trrOutcome: v.trrOutcome ?? null,
+        scenariosExecuted: doc.scenariosExecuted ?? 0,
+        detectionsValidated: doc.detectionsValidated ?? 0,
+        trrOutcome: doc.trrOutcome ?? null,
         cycleDays,
       };
     });
 
     // Fetch OKRs from separate collection
-    const okrSnap = await getDocs(collection(db as any, 'dc_okrs'));
-    const okrs = okrSnap.docs.map((d) => {
-      const v: any = d.data();
-      return {
-        id: d.id,
-        name: v.name || d.id,
-        progress: Number(v.progress ?? 0),
-      };
-    });
+    const okrsData = await db.findMany('dc_okrs', {});
+    const okrs = okrsData.map((doc: any) => ({
+      id: doc.id || doc._id,
+      name: doc.name || doc.id || doc._id,
+      progress: Number(doc.progress ?? 0),
+    }));
 
     return {
       records,
       okrs,
-      source: records.length ? 'firestore' : 'empty',
+      source: records.length ? 'database' : 'empty',
     };
   } catch (e) {
     console.error('Error fetching analytics:', e);
@@ -153,51 +185,64 @@ export async function fetchBlueprintSummary(
   const since = new Date(Date.now() - sinceDays * 86400000);
 
   try {
-    const col = collection(db as any, 'dc_engagements');
-    const q = query(
-      col,
-      where('customer', '==', customer),
-      where('createdAt', '>=', Timestamp.fromDate(since))
-    );
+    const db = getDatabase();
 
-    const snap = await getDocs(q);
+    // Query engagements for the customer
+    const engagements = await db.findMany('dc_engagements', {
+      filters: [
+        {
+          field: 'customer',
+          operator: '==',
+          value: customer
+        },
+        {
+          field: 'createdAt',
+          operator: '>=',
+          value: since
+        }
+      ]
+    });
 
     // Transform documents to records
-    const records: EngagementRecord[] = snap.docs.map((d) => {
-      const v: any = d.data();
-      const createdAt = v.createdAt?.toDate
-        ? v.createdAt.toDate()
-        : new Date(v.createdAt || Date.now());
-      const completedAt = v.completedAt?.toDate
-        ? v.completedAt.toDate()
-        : v.completedAt
-        ? new Date(v.completedAt)
+    const records: EngagementRecord[] = engagements.map((doc: any) => {
+      // Handle date conversion
+      const createdAt = doc.createdAt instanceof Date
+        ? doc.createdAt
+        : doc.createdAt?.toDate
+        ? doc.createdAt.toDate()
+        : new Date(doc.createdAt || Date.now());
+
+      const completedAt = doc.completedAt instanceof Date
+        ? doc.completedAt
+        : doc.completedAt?.toDate
+        ? doc.completedAt.toDate()
+        : doc.completedAt
+        ? new Date(doc.completedAt)
         : null;
 
-      const cycleDays =
-        v.cycleDays ??
+      const cycleDays = doc.cycleDays ??
         (completedAt
           ? Math.max(0, Math.round((completedAt.getTime() - createdAt.getTime()) / 86400000))
           : undefined);
 
       return {
-        region: v.region || 'UNKNOWN',
-        theatre: v.theatre || 'UNKNOWN',
-        user: (v.user || 'unknown').toLowerCase(),
-        location: v.location || 'N/A',
-        customer: v.customer || 'unknown',
+        region: doc.region || 'UNKNOWN',
+        theatre: doc.theatre || 'UNKNOWN',
+        user: (doc.user || 'unknown').toLowerCase(),
+        location: doc.location || 'N/A',
+        customer: doc.customer || 'unknown',
         createdAt,
         completedAt,
-        scenariosExecuted: v.scenariosExecuted ?? 0,
-        detectionsValidated: v.detectionsValidated ?? 0,
-        trrOutcome: v.trrOutcome ?? null,
+        scenariosExecuted: doc.scenariosExecuted ?? 0,
+        detectionsValidated: doc.detectionsValidated ?? 0,
+        trrOutcome: doc.trrOutcome ?? null,
         cycleDays,
       };
     });
 
     // Aggregate statistics
     const sum = (a: number, b: number) => a + b;
-    const engagements = records.length;
+    const engagementsCount = records.length;
     const scenariosExecuted = records.map((r) => r.scenariosExecuted ?? 0).reduce(sum, 0);
     const detectionsValidated = records.map((r) => r.detectionsValidated ?? 0).reduce(sum, 0);
     const trrWins = records.filter((r) => r.trrOutcome === 'win').length;
@@ -207,13 +252,13 @@ export async function fetchBlueprintSummary(
       : 0;
 
     return {
-      engagements,
+      engagements: engagementsCount,
       scenariosExecuted,
       detectionsValidated,
       trrWins,
       trrLosses,
       avgCycleDays,
-      source: engagements ? 'firestore' : 'empty',
+      source: engagementsCount ? 'database' : 'empty',
     };
   } catch (e) {
     console.error('Error fetching blueprint summary:', e);
@@ -287,4 +332,65 @@ export function calculateAvgCycleDays(records: EngagementRecord[]): number {
 
   const total = withCycleDays.reduce((sum, r) => sum + (r.cycleDays ?? 0), 0);
   return Math.round(total / withCycleDays.length);
+}
+
+/**
+ * Get top performing users
+ * @param records - Engagement records to analyze
+ * @param limit - Number of top users to return
+ * @returns Top users by engagement count
+ */
+export function getTopPerformingUsers(
+  records: EngagementRecord[],
+  limit: number = 10
+): Array<{ user: string; engagements: number; winRate: number }> {
+  const userMap = new Map<string, { engagements: number; wins: number; total: number }>();
+
+  records.forEach((record) => {
+    const user = record.user;
+    const stats = userMap.get(user) || { engagements: 0, wins: 0, total: 0 };
+
+    stats.engagements++;
+    if (record.trrOutcome) {
+      stats.total++;
+      if (record.trrOutcome === 'win') {
+        stats.wins++;
+      }
+    }
+
+    userMap.set(user, stats);
+  });
+
+  const topUsers = Array.from(userMap.entries())
+    .map(([user, stats]) => ({
+      user,
+      engagements: stats.engagements,
+      winRate: stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0,
+    }))
+    .sort((a, b) => b.engagements - a.engagements)
+    .slice(0, limit);
+
+  return topUsers;
+}
+
+/**
+ * Get engagement trends over time
+ * @param records - Engagement records to analyze
+ * @returns Daily engagement counts
+ */
+export function getEngagementTrends(
+  records: EngagementRecord[]
+): Array<{ date: string; count: number }> {
+  const dateMap = new Map<string, number>();
+
+  records.forEach((record) => {
+    const date = record.createdAt.toISOString().split('T')[0];
+    dateMap.set(date, (dateMap.get(date) || 0) + 1);
+  });
+
+  const trends = Array.from(dateMap.entries())
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return trends;
 }

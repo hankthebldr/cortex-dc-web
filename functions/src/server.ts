@@ -1,23 +1,16 @@
 /**
- * Express Server for Firebase Functions
- * Converts Firebase Cloud Functions to standalone Express server
- * for Kubernetes deployment
+ * Express Server for Cortex Functions
+ * Pure Express server with no Firebase dependencies
+ * Supports both standalone and Firebase deployment modes
  */
 
-import express, { Request, Response } from 'express';
-import * as logger from 'firebase-functions/logger';
-import admin from 'firebase-admin';
+import express, { Request, Response, NextFunction } from 'express';
+import { getLogger } from './adapters/logger.adapter';
+import { healthCheckHandler } from './handlers/health.handler';
+import { echoHandler } from './handlers/echo.handler';
+import { environmentHandler } from './handlers/environment.handler';
 
-// Initialize Firebase Admin
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-  });
-}
-
-// Import function handlers
-import { healthCheck, echo, environmentSummary } from './index';
-
+const logger = getLogger();
 const app = express();
 const PORT = process.env.PORT || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -27,7 +20,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Request logging middleware
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
@@ -43,7 +36,7 @@ app.use((req, res, next) => {
 });
 
 // CORS middleware
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   res.header('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -56,75 +49,59 @@ app.use((req, res, next) => {
   next();
 });
 
-// Helper to convert Firebase function to Express route
-function wrapFirebaseFunction(firebaseFunction: any) {
-  return (req: Request, res: Response) => {
-    const mockRequest = {
-      ...req,
-      rawBody: Buffer.from(JSON.stringify(req.body)),
-    };
-
-    const mockResponse = {
-      ...res,
-      send: (data: any) => res.send(data),
-      json: (data: any) => res.json(data),
-      status: (code: number) => {
-        res.status(code);
-        return mockResponse;
-      },
-      set: (field: string, value: string) => {
-        res.set(field, value);
-        return mockResponse;
-      },
-    };
-
-    return firebaseFunction(mockRequest, mockResponse);
-  };
-}
-
-// Health check endpoint (K8s readiness/liveness probes)
-app.get('/health', wrapFirebaseFunction(healthCheck));
-app.get('/healthz', wrapFirebaseFunction(healthCheck));
-app.get('/readyz', wrapFirebaseFunction(healthCheck));
+// Health check endpoints (Kubernetes readiness/liveness probes)
+app.get('/health', healthCheckHandler);
+app.get('/healthz', healthCheckHandler);
+app.get('/readyz', healthCheckHandler);
 
 // Function endpoints
-app.post('/echo', wrapFirebaseFunction(echo));
-app.get('/environment', wrapFirebaseFunction(environmentSummary));
+app.post('/echo', echoHandler);
+app.get('/environment', environmentHandler);
 
 // Metrics endpoint for Prometheus
-app.get('/metrics', (req, res) => {
+app.get('/metrics', (req: Request, res: Response) => {
   res.set('Content-Type', 'text/plain');
   res.send(`
 # HELP functions_up Service is up and running
 # TYPE functions_up gauge
 functions_up 1
 
-# HELP functions_requests_total Total number of requests
-# TYPE functions_requests_total counter
-functions_requests_total{method="GET",path="/health"} 100
+# HELP functions_deployment_mode Current deployment mode
+# TYPE functions_deployment_mode gauge
+functions_deployment_mode{mode="${process.env.DEPLOYMENT_MODE || 'standalone'}"} 1
 
-# HELP functions_request_duration_seconds Request duration in seconds
-# TYPE functions_request_duration_seconds histogram
-functions_request_duration_seconds_bucket{le="0.05"} 95
-functions_request_duration_seconds_bucket{le="0.1"} 98
-functions_request_duration_seconds_bucket{le="0.5"} 100
-functions_request_duration_seconds_sum 4.5
-functions_request_duration_seconds_count 100
+# HELP functions_version Service version
+# TYPE functions_version info
+functions_version{version="${process.env.APP_VERSION || 'dev'}"} 1
   `.trim());
 });
 
 // 404 handler
-app.use((req, res) => {
+app.use((req: Request, res: Response) => {
   res.status(404).json({
     error: 'Not Found',
     path: req.path,
     timestamp: new Date().toISOString(),
+    availableEndpoints: [
+      'GET /health',
+      'GET /healthz',
+      'GET /readyz',
+      'POST /echo',
+      'GET /environment',
+      'GET /metrics',
+    ],
   });
 });
 
 // Error handler
-app.use((err: Error, req: Request, res: Response, next: any) => {
-  logger.error('Unhandled error:', err);
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  logger.error('Unhandled error:', {
+    error: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    path: req.path,
+    method: req.method,
+  });
+
   res.status(500).json({
     error: 'Internal Server Error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'An error occurred',
@@ -153,6 +130,7 @@ process.on('SIGINT', () => {
 const server = app.listen(PORT, () => {
   logger.info(`🚀 Functions microservice running on ${HOST}:${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`Deployment Mode: ${process.env.DEPLOYMENT_MODE || 'standalone'}`);
   logger.info(`Version: ${process.env.APP_VERSION || 'dev'}`);
 });
 
