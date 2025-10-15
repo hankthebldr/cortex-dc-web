@@ -325,3 +325,46 @@ export async function prefetchData<T = any>(
   }
   return apiClient.listData<T>(collection, params);
 }
+
+/**
+ * Hook for dashboard metrics
+ */
+export function useDashboardMetrics(userId?: string) {
+  const { data, error, isLoading, mutate } = useSWR(
+    userId ? `/api/metrics/dashboard/${userId}` : '/api/metrics/dashboard',
+    () => apiClient.request(`/metrics/dashboard${userId ? `/${userId}` : ''}`),
+    {
+      revalidateOnFocus: false,
+      refreshInterval: 30000, // Refresh every 30 seconds
+    }
+  );
+
+  return {
+    metrics: data,
+    isLoading,
+    isError: error,
+    error,
+    mutate,
+  };
+}
+
+/**
+ * Hook for recent activity
+ */
+export function useRecentActivity(userId?: string, limit: number = 10) {
+  const { data, error, isLoading, mutate } = useSWR(
+    `/api/activity/recent?userId=${userId || 'me'}&limit=${limit}`,
+    () => apiClient.request(`/activity/recent?userId=${userId || 'me'}&limit=${limit}`),
+    {
+      revalidateOnFocus: false,
+    }
+  );
+
+  return {
+    activities: data?.items || [],
+    isLoading,
+    isError: error,
+    error,
+    mutate,
+  };
+}

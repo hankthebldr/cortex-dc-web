@@ -82,7 +82,7 @@ class CortexAPIClient {
   /**
    * Make HTTP request to API
    */
-  private async request<T = any>(
+  async request<T = any>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {

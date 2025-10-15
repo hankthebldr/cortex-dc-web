@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: functions-config
+  namespace: cortex-dc
+  labels:
+    app: functions
+    component: microservice
+data:
+  # Application version
+  app-version: "1.0.0"
+
+  # Logging configuration
+  log-level: "info"
+
+  # CORS configuration
+  cors-origin: "https://cortex-dc.com,https://www.cortex-dc.com"
+
+  # Server configuration
+  server-timeout: "30000"
+  body-limit: "10mb"
+
+  # Feature flags
+  enable-genkit: "true"
+  enable-metrics: "true"
+
+  # Performance tuning
+  max-connections: "100"
+  keep-alive-timeout: "5000"

@@ -1,0 +1,95 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cortex-web-ingress
+  namespace: cortex-dc
+  labels:
+    app: cortex-web
+    component: frontend
+  annotations:
+    # GKE-specific annotations
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "cortex-web-ip"
+    networking.gke.io/managed-certificates: "cortex-web-cert"
+
+    # SSL redirect
+    kubernetes.io/ingress.allow-http: "true"
+
+    # Timeout settings
+    cloud.google.com/backend-config: '{"default": "cortex-web-backend-config"}'
+
+    # Rate limiting (optional, requires cloud armor)
+    # cloud.google.com/armor-config: '{"enable": true}'
+spec:
+  rules:
+  - host: cortex-dc.example.com
+    http:
+      paths:
+      - path: /*
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: cortex-web
+            port:
+              number: 80
+  - host: www.cortex-dc.example.com
+    http:
+      paths:
+      - path: /*
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: cortex-web
+            port:
+              number: 80
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: cortex-web-cert
+  namespace: cortex-dc
+spec:
+  domains:
+  - cortex-dc.example.com
+  - www.cortex-dc.example.com
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: cortex-web-backend-config
+  namespace: cortex-dc
+spec:
+  timeoutSec: 300
+  connectionDraining:
+    drainingTimeoutSec: 60
+  sessionAffinity:
+    affinityType: "CLIENT_IP"
+    affinityCookieTtlSec: 10800
+  healthCheck:
+    checkIntervalSec: 10
+    timeoutSec: 5
+    healthyThreshold: 2
+    unhealthyThreshold: 3
+    type: HTTP
+    requestPath: /api/health
+    port: 3000
+  cdn:
+    enabled: true
+    cachePolicy:
+      includeHost: true
+      includeProtocol: true
+      includeQueryString: false
+    negativeCaching: true
+    negativeCachingPolicy:
+    - code: 404
+      ttl: 120
+    - code: 410
+      ttl: 120
+  iap:
+    enabled: false
+    # If enabling IAP:
+    # oauthclientCredentials:
+    #   secretName: oauth-client-secret
+  logging:
+    enable: true
+    sampleRate: 1.0

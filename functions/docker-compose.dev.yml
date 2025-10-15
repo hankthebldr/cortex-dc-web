@@ -1,0 +1,21 @@
+version: '3.8'
+
+# Development override for docker-compose
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  functions:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: development
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+    volumes:
+      # Mount source for hot reload
+      - ./src:/app/src:ro
+      - ./lib:/app/lib
+      - /app/node_modules
+    command: ["pnpm", "run", "server:dev"]
+    restart: "no"

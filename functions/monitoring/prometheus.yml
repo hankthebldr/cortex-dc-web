@@ -1,0 +1,28 @@
+# Prometheus Configuration for Functions Microservice
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'local-docker'
+    environment: 'development'
+
+# Scrape configurations
+scrape_configs:
+  # Functions microservice metrics
+  - job_name: 'functions'
+    static_configs:
+      - targets: ['functions:8080']
+        labels:
+          service: 'functions-microservice'
+          instance: 'local'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'

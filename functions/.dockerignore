@@ -1,0 +1,54 @@
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Build artifacts
+lib/
+*.log
+
+# Development files
+*.md
+.vscode/
+.idea/
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Tests
+*.test.ts
+*.spec.ts
+test/
+tests/
+__tests__/
+
+# Documentation
+docs/
+*.md
+
+# Environment files
+.env
+.env.*
+!.env.docker
+
+# Firebase
+.firebaserc
+firebase-debug.log
+firebase-debug.*.log
+ui-debug.log
+.firebase/
+
+# K8s
+k8s/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

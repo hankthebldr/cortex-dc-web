@@ -46,7 +46,7 @@ declare function getFirebaseConfig(): {
  */
 declare function forceReconnectEmulators(): void;
 
-interface AuthUser {
+interface AuthUser$1 {
     id: string;
     username: string;
     email: string;
@@ -60,9 +60,9 @@ interface AuthCredentials {
     username: string;
     password: string;
 }
-interface AuthResult {
+interface AuthResult$1 {
     success: boolean;
-    user?: AuthUser;
+    user?: AuthUser$1;
     error?: string;
 }
 declare class AuthService {
@@ -74,7 +74,7 @@ declare class AuthService {
      * @param credentials - Username and password
      * @returns Authentication result with user data or error
      */
-    authenticate(credentials: AuthCredentials): Promise<AuthResult>;
+    authenticate(credentials: AuthCredentials): Promise<AuthResult$1>;
     /**
      * Check if user is currently authenticated
      * @returns True if user has valid session
@@ -84,7 +84,7 @@ declare class AuthService {
      * Get current authenticated user
      * @returns User object or null if not authenticated
      */
-    getCurrentUser(): AuthUser | null;
+    getCurrentUser(): AuthUser$1 | null;
     /**
      * Get current session ID
      * @returns Session ID or null
@@ -206,9 +206,15 @@ declare function calculateAvgCycleDays(records: EngagementRecord[]): number;
  * settings, notifications, and organizational structure
  *
  * Migrated from henryreed.ai/hosting/lib/user-management-service.ts
+ *
+ * MIGRATION NOTE: This service now supports both Firebase Functions and REST API
+ * - In Firebase mode: Uses httpsCallable for createUserProfile/updateUserProfile
+ * - In self-hosted mode: Uses REST API endpoints
+ *
+ * Mode is determined by DEPLOYMENT_MODE or NEXT_PUBLIC_DEPLOYMENT_MODE environment variable
  */
 
-interface UserProfile$2 {
+interface UserProfile$3 {
     uid: string;
     email: string;
     displayName: string;
@@ -231,7 +237,7 @@ interface UserProfile$2 {
     };
     status: 'active' | 'inactive' | 'pending' | 'suspended';
 }
-interface CreateUserRequest {
+interface CreateUserRequest$1 {
     email: string;
     displayName: string;
     role?: string;
@@ -241,7 +247,7 @@ interface CreateUserRequest {
     notifications?: boolean;
     language?: string;
 }
-interface UpdateUserRequest {
+interface UpdateUserRequest$1 {
     uid?: string;
     displayName?: string;
     department?: string;
@@ -283,25 +289,36 @@ interface UserSettings {
 declare class UserManagementService {
     private createUserProfileFn;
     private updateUserProfileFn;
+    private apiClient;
+    /**
+     * Get deployment mode
+     */
+    private getDeploymentMode;
+    /**
+     * Get API client (lazy load)
+     */
+    private getApiClient;
     /**
      * Create a new user profile
+     * Uses Firebase Functions in Firebase mode, REST API in self-hosted mode
      */
-    createUser(userData: CreateUserRequest): Promise<{
+    createUser(userData: CreateUserRequest$1): Promise<{
         success: boolean;
-        profile?: UserProfile$2;
+        profile?: UserProfile$3;
         error?: string;
     }>;
     /**
      * Update user profile
+     * Uses Firebase Functions in Firebase mode, REST API in self-hosted mode
      */
-    updateUser(updates: UpdateUserRequest): Promise<{
+    updateUser(updates: UpdateUserRequest$1): Promise<{
         success: boolean;
         error?: string;
     }>;
     /**
      * Get user profile by UID
      */
-    getUserProfile(uid: string): Promise<UserProfile$2 | null>;
+    getUserProfile(uid: string): Promise<UserProfile$3 | null>;
     /**
      * Get all users with optional filters
      */
@@ -310,11 +327,11 @@ declare class UserManagementService {
         status?: string;
         organizationId?: string;
         limit?: number;
-    }): Promise<UserProfile$2[]>;
+    }): Promise<UserProfile$3[]>;
     /**
      * Subscribe to users collection changes
      */
-    subscribeToUsers(callback: (users: UserProfile$2[]) => void, filters?: {
+    subscribeToUsers(callback: (users: UserProfile$3[]) => void, filters?: {
         role?: string;
         status?: string;
         organizationId?: string;
@@ -343,7 +360,7 @@ declare class UserManagementService {
     /**
      * Get organization members
      */
-    getOrganizationMembers(organizationId: string): Promise<UserProfile$2[]>;
+    getOrganizationMembers(organizationId: string): Promise<UserProfile$3[]>;
     /**
      * Add user to organization
      */
@@ -383,7 +400,7 @@ declare class UserManagementService {
     /**
      * Bulk update users
      */
-    bulkUpdateUsers(userIds: string[], updates: Partial<Pick<UserProfile$2, 'role' | 'status' | 'organizationId'>>): Promise<{
+    bulkUpdateUsers(userIds: string[], updates: Partial<Pick<UserProfile$3, 'role' | 'status' | 'organizationId'>>): Promise<{
         success: number;
         failed: number;
     }>;
@@ -394,9 +411,120 @@ declare class UserManagementService {
         role?: string;
         status?: string;
         organizationId?: string;
-    }): Promise<UserProfile$2[]>;
+    }): Promise<UserProfile$3[]>;
 }
 declare const userManagementService: UserManagementService;
+
+/**
+ * User Management API Client
+ * Replaces Firebase Functions with REST API calls
+ * Works with both Firebase and self-hosted deployments
+ */
+interface CreateUserRequest {
+    email: string;
+    displayName: string;
+    role?: string;
+    department?: string;
+    organizationId?: string;
+    theme?: 'light' | 'dark';
+    notifications?: boolean;
+    language?: string;
+}
+interface UpdateUserRequest {
+    uid?: string;
+    displayName?: string;
+    department?: string;
+    role?: string;
+    status?: string;
+    preferences?: {
+        theme?: 'light' | 'dark';
+        notifications?: boolean;
+        language?: string;
+    };
+}
+interface UserProfile$2 {
+    uid: string;
+    email: string;
+    displayName: string;
+    photoURL: string | null;
+    role: 'user' | 'admin' | 'analyst' | 'manager';
+    organizationId: string | null;
+    department: string | null;
+    permissions: string[];
+    preferences: {
+        theme: 'light' | 'dark';
+        notifications: boolean;
+        language: string;
+    };
+    metadata: {
+        createdAt: any;
+        lastActive: any;
+        loginCount: number;
+        emailVerified: boolean;
+        providerData: any[];
+    };
+    status: 'active' | 'inactive' | 'pending' | 'suspended';
+}
+interface ApiResponse<T> {
+    success: boolean;
+    data?: T;
+    profile?: T;
+    error?: string;
+}
+/**
+ * User Management API Client Class
+ */
+declare class UserManagementApiClient {
+    /**
+     * Create a new user profile
+     */
+    createUser(userData: CreateUserRequest): Promise<ApiResponse<UserProfile$2>>;
+    /**
+     * Update user profile
+     */
+    updateUser(userId: string, updates: UpdateUserRequest): Promise<ApiResponse<UserProfile$2>>;
+    /**
+     * Get user profile by ID
+     */
+    getUserProfile(userId: string): Promise<UserProfile$2 | null>;
+    /**
+     * Get current user profile
+     */
+    getCurrentUser(): Promise<UserProfile$2 | null>;
+    /**
+     * Get all users with optional filters
+     */
+    getUsers(filters?: {
+        role?: string;
+        status?: string;
+        organizationId?: string;
+        limit?: number;
+    }): Promise<UserProfile$2[]>;
+    /**
+     * Delete user
+     */
+    deleteUser(userId: string): Promise<boolean>;
+    /**
+     * Bulk update users
+     */
+    bulkUpdateUsers(userIds: string[], updates: Partial<Pick<UserProfile$2, 'role' | 'status' | 'organizationId'>>): Promise<{
+        success: number;
+        failed: number;
+    }>;
+    /**
+     * Get organization members
+     */
+    getOrganizationMembers(organizationId: string): Promise<UserProfile$2[]>;
+    /**
+     * Export users data
+     */
+    exportUsers(filters?: {
+        role?: string;
+        status?: string;
+        organizationId?: string;
+    }): Promise<UserProfile$2[]>;
+}
+declare const userManagementApiClient: UserManagementApiClient;
 
 /**
  * User Activity Service
@@ -581,7 +709,7 @@ interface Permission {
     resource: string;
     actions: string[];
 }
-interface QueryFilter {
+interface QueryFilter$1 {
     where?: any;
     include?: any;
     select?: any;
@@ -606,7 +734,7 @@ declare class RBACMiddleware {
     /**
      * Apply role-based filtering to database queries
      */
-    static filterQuery(context: RBACContext, baseQuery?: QueryFilter): QueryFilter;
+    static filterQuery(context: RBACContext, baseQuery?: QueryFilter$1): QueryFilter$1;
     /**
      * Check if user has permission to perform an action on a resource
      */
@@ -857,6 +985,1113 @@ declare class DCContextStore {
 }
 declare const dcContextStore: DCContextStore;
 
+/**
+ * Database Validation Service
+ * Validates that database operations are correctly migrated
+ * and working across Firebase and self-hosted modes
+ */
+interface ValidationResult {
+    passed: boolean;
+    test: string;
+    duration: number;
+    error?: string;
+    details?: any;
+}
+interface ValidationReport {
+    overall: 'passed' | 'failed' | 'partial';
+    timestamp: Date;
+    mode: 'firebase' | 'self-hosted';
+    results: ValidationResult[];
+    summary: {
+        total: number;
+        passed: number;
+        failed: number;
+        duration: number;
+    };
+}
+declare class DatabaseValidationService {
+    /**
+     * Run comprehensive database validation tests
+     */
+    validate(): Promise<ValidationReport>;
+    /**
+     * Test database connection
+     */
+    private testDatabaseConnection;
+    /**
+     * Test CRUD operations
+     */
+    private testCRUDOperations;
+    /**
+     * Test query operations
+     */
+    private testQueryOperations;
+    /**
+     * Test transaction support
+     */
+    private testTransactions;
+    /**
+     * Test storage operations
+     */
+    private testStorageOperations;
+    /**
+     * Test relationship integrity
+     */
+    private testRelationshipIntegrity;
+    /**
+     * Quick health check (subset of full validation)
+     */
+    healthCheck(): Promise<{
+        healthy: boolean;
+        details: any;
+    }>;
+}
+declare const databaseValidationService: DatabaseValidationService;
+
+/**
+ * Analytics Service
+ * Provides analytics for both user space and admin space
+ * Tracks POV/TRR activity, user engagement, and system metrics
+ */
+interface UserAnalytics {
+    userId: string;
+    period: 'week' | 'month' | 'quarter' | 'year';
+    metrics: {
+        totalPOVs: number;
+        activePOVs: number;
+        completedPOVs: number;
+        totalTRRs: number;
+        completedTRRs: number;
+        totalProjects: number;
+        activeProjects: number;
+        hoursLogged: number;
+        tasksCompleted: number;
+        collaborations: number;
+    };
+    trends: {
+        povsCreated: number[];
+        trrsSubmitted: number[];
+        activityScore: number[];
+        dates: string[];
+    };
+    topProjects: Array<{
+        id: string;
+        title: string;
+        status: string;
+        lastActivity: Date;
+    }>;
+    recentActivity: Array<{
+        id: string;
+        type: string;
+        action: string;
+        timestamp: Date;
+        entityTitle: string;
+    }>;
+}
+interface AdminAnalytics {
+    period: 'week' | 'month' | 'quarter' | 'year';
+    systemMetrics: {
+        totalUsers: number;
+        activeUsers: number;
+        newUsers: number;
+        totalPOVs: number;
+        activePOVs: number;
+        totalTRRs: number;
+        pendingTRRs: number;
+        totalProjects: number;
+        activeProjects: number;
+        storageUsed: number;
+        apiCalls: number;
+    };
+    performance: {
+        avgResponseTime: number;
+        errorRate: number;
+        uptime: number;
+    };
+    userEngagement: {
+        dailyActiveUsers: number[];
+        weeklyActiveUsers: number[];
+        dates: string[];
+    };
+    projectHealth: {
+        good: number;
+        warning: number;
+        atRisk: number;
+    };
+    topUsers: Array<{
+        userId: string;
+        displayName: string;
+        povsCreated: number;
+        trrsCompleted: number;
+        activityScore: number;
+    }>;
+    trendsOverTime: {
+        povsPerWeek: number[];
+        trrsPerWeek: number[];
+        projectsPerWeek: number[];
+        dates: string[];
+    };
+}
+declare class AnalyticsService {
+    /**
+     * Get user-specific analytics
+     */
+    getUserAnalytics(userId: string, period?: 'week' | 'month' | 'quarter' | 'year'): Promise<UserAnalytics>;
+    /**
+     * Get admin-level analytics
+     */
+    getAdminAnalytics(period?: 'week' | 'month' | 'quarter' | 'year'): Promise<AdminAnalytics>;
+    /**
+     * Get recent activity for a user
+     */
+    private getUserRecentActivity;
+    /**
+     * Get top performing users
+     */
+    private getTopUsers;
+    /**
+     * Calculate trends for a period
+     */
+    private calculateTrends;
+    /**
+     * Calculate system-wide trends
+     */
+    private calculateSystemTrends;
+    /**
+     * Calculate user engagement metrics
+     */
+    private calculateUserEngagement;
+    /**
+     * Calculate project health score
+     */
+    private calculateProjectHealth;
+    /**
+     * Get period date range
+     */
+    private getPeriodDates;
+    /**
+     * Get time intervals for a period
+     */
+    private getIntervals;
+    /**
+     * Get interval index for a date
+     */
+    private getIntervalIndex;
+}
+declare const analyticsService: AnalyticsService;
+
+declare enum Priority {
+    LOW = "low",
+    MEDIUM = "medium",
+    HIGH = "high",
+    CRITICAL = "critical"
+}
+declare enum POVStatus {
+    PLANNING = "planning",
+    IN_PROGRESS = "in_progress",
+    TESTING = "testing",
+    VALIDATING = "validating",
+    COMPLETED = "completed",
+    AT_RISK = "at_risk",
+    CANCELLED = "cancelled"
+}
+declare enum TRRStatus {
+    DRAFT = "draft",
+    IN_REVIEW = "in_review",
+    PENDING_VALIDATION = "pending_validation",
+    VALIDATED = "validated",
+    APPROVED = "approved",
+    REJECTED = "rejected",
+    COMPLETED = "completed"
+}
+declare enum TaskStatus {
+    TODO = "todo",
+    IN_PROGRESS = "in_progress",
+    REVIEW = "review",
+    DONE = "done",
+    BLOCKED = "blocked"
+}
+/**
+ * POV (Proof of Value) Schema
+ */
+declare const POVSchema: z.ZodObject<{
+    id: z.ZodString;
+    projectId: z.ZodString;
+    title: z.ZodString;
+    description: z.ZodString;
+    status: z.ZodNativeEnum<typeof POVStatus>;
+    priority: z.ZodNativeEnum<typeof Priority>;
+    objectives: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        id: z.ZodString;
+        description: z.ZodString;
+        success_criteria: z.ZodString;
+        status: z.ZodEnum<["pending", "in_progress", "completed", "failed"]>;
+        weight: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        status: "in_progress" | "completed" | "pending" | "failed";
+        id: string;
+        description: string;
+        success_criteria: string;
+        weight: number;
+    }, {
+        status: "in_progress" | "completed" | "pending" | "failed";
+        id: string;
+        description: string;
+        success_criteria: string;
+        weight?: number | undefined;
+    }>, "many">>;
+    testPlan: z.ZodOptional<z.ZodObject<{
+        scenarios: z.ZodArray<z.ZodString, "many">;
+        environment: z.ZodOptional<z.ZodString>;
+        timeline: z.ZodObject<{
+            start: z.ZodDate;
+            end: z.ZodDate;
+            milestones: z.ZodArray<z.ZodObject<{
+                id: z.ZodString;
+                title: z.ZodString;
+                date: z.ZodDate;
+                status: z.ZodEnum<["upcoming", "in_progress", "completed", "overdue"]>;
+            }, "strip", z.ZodTypeAny, {
+                status: "in_progress" | "completed" | "upcoming" | "overdue";
+                id: string;
+                title: string;
+                date: Date;
+            }, {
+                status: "in_progress" | "completed" | "upcoming" | "overdue";
+                id: string;
+                title: string;
+                date: Date;
+            }>, "many">;
+        }, "strip", z.ZodTypeAny, {
+            start: Date;
+            end: Date;
+            milestones: {
+                status: "in_progress" | "completed" | "upcoming" | "overdue";
+                id: string;
+                title: string;
+                date: Date;
+            }[];
+        }, {
+            start: Date;
+            end: Date;
+            milestones: {
+                status: "in_progress" | "completed" | "upcoming" | "overdue";
+                id: string;
+                title: string;
+                date: Date;
+            }[];
+        }>;
+        resources: z.ZodDefault<z.ZodArray<z.ZodObject<{
+            type: z.ZodEnum<["personnel", "equipment", "software", "budget"]>;
+            description: z.ZodString;
+            quantity: z.ZodOptional<z.ZodNumber>;
+            cost: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            type: "budget" | "personnel" | "equipment" | "software";
+            description: string;
+            quantity?: number | undefined;
+            cost?: number | undefined;
+        }, {
+            type: "budget" | "personnel" | "equipment" | "software";
+            description: string;
+            quantity?: number | undefined;
+            cost?: number | undefined;
+        }>, "many">>;
+    }, "strip", z.ZodTypeAny, {
+        scenarios: string[];
+        timeline: {
+            start: Date;
+            end: Date;
+            milestones: {
+                status: "in_progress" | "completed" | "upcoming" | "overdue";
+                id: string;
+                title: string;
+                date: Date;
+            }[];
+        };
+        resources: {
+            type: "budget" | "personnel" | "equipment" | "software";
+            description: string;
+            quantity?: number | undefined;
+            cost?: number | undefined;
+        }[];
+        environment?: string | undefined;
+    }, {
+        scenarios: string[];
+        timeline: {
+            start: Date;
+            end: Date;
+            milestones: {
+                status: "in_progress" | "completed" | "upcoming" | "overdue";
+                id: string;
+                title: string;
+                date: Date;
+            }[];
+        };
+        environment?: string | undefined;
+        resources?: {
+            type: "budget" | "personnel" | "equipment" | "software";
+            description: string;
+            quantity?: number | undefined;
+            cost?: number | undefined;
+        }[] | undefined;
+    }>>;
+    successMetrics: z.ZodDefault<z.ZodObject<{
+        businessValue: z.ZodOptional<z.ZodObject<{
+            roi: z.ZodOptional<z.ZodNumber>;
+            costSavings: z.ZodOptional<z.ZodNumber>;
+            riskReduction: z.ZodOptional<z.ZodString>;
+            efficiency_gains: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            roi?: number | undefined;
+            costSavings?: number | undefined;
+            riskReduction?: string | undefined;
+            efficiency_gains?: string | undefined;
+        }, {
+            roi?: number | undefined;
+            costSavings?: number | undefined;
+            riskReduction?: string | undefined;
+            efficiency_gains?: string | undefined;
+        }>>;
+        technicalMetrics: z.ZodOptional<z.ZodObject<{
+            performance: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodNumber>>;
+            reliability: z.ZodOptional<z.ZodNumber>;
+            security_score: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            performance?: Record<string, number> | undefined;
+            reliability?: number | undefined;
+            security_score?: number | undefined;
+        }, {
+            performance?: Record<string, number> | undefined;
+            reliability?: number | undefined;
+            security_score?: number | undefined;
+        }>>;
+    }, "strip", z.ZodTypeAny, {
+        businessValue?: {
+            roi?: number | undefined;
+            costSavings?: number | undefined;
+            riskReduction?: string | undefined;
+            efficiency_gains?: string | undefined;
+        } | undefined;
+        technicalMetrics?: {
+            performance?: Record<string, number> | undefined;
+            reliability?: number | undefined;
+            security_score?: number | undefined;
+        } | undefined;
+    }, {
+        businessValue?: {
+            roi?: number | undefined;
+            costSavings?: number | undefined;
+            riskReduction?: string | undefined;
+            efficiency_gains?: string | undefined;
+        } | undefined;
+        technicalMetrics?: {
+            performance?: Record<string, number> | undefined;
+            reliability?: number | undefined;
+            security_score?: number | undefined;
+        } | undefined;
+    }>>;
+    phases: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        id: z.ZodString;
+        name: z.ZodString;
+        description: z.ZodOptional<z.ZodString>;
+        startDate: z.ZodDate;
+        endDate: z.ZodOptional<z.ZodDate>;
+        status: z.ZodNativeEnum<typeof TaskStatus>;
+        tasks: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    }, "strip", z.ZodTypeAny, {
+        status: TaskStatus;
+        id: string;
+        name: string;
+        startDate: Date;
+        tasks: string[];
+        description?: string | undefined;
+        endDate?: Date | undefined;
+    }, {
+        status: TaskStatus;
+        id: string;
+        name: string;
+        startDate: Date;
+        description?: string | undefined;
+        endDate?: Date | undefined;
+        tasks?: string[] | undefined;
+    }>, "many">>;
+    owner: z.ZodString;
+    team: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    createdAt: z.ZodDate;
+    updatedAt: z.ZodDate;
+    createdBy: z.ZodString;
+    lastModifiedBy: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    createdAt: Date;
+    priority: Priority;
+    status: POVStatus;
+    id: string;
+    updatedAt: Date;
+    title: string;
+    description: string;
+    projectId: string;
+    createdBy: string;
+    objectives: {
+        status: "in_progress" | "completed" | "pending" | "failed";
+        id: string;
+        description: string;
+        success_criteria: string;
+        weight: number;
+    }[];
+    successMetrics: {
+        businessValue?: {
+            roi?: number | undefined;
+            costSavings?: number | undefined;
+            riskReduction?: string | undefined;
+            efficiency_gains?: string | undefined;
+        } | undefined;
+        technicalMetrics?: {
+            performance?: Record<string, number> | undefined;
+            reliability?: number | undefined;
+            security_score?: number | undefined;
+        } | undefined;
+    };
+    owner: string;
+    team: string[];
+    lastModifiedBy: string;
+    phases: {
+        status: TaskStatus;
+        id: string;
+        name: string;
+        startDate: Date;
+        tasks: string[];
+        description?: string | undefined;
+        endDate?: Date | undefined;
+    }[];
+    testPlan?: {
+        scenarios: string[];
+        timeline: {
+            start: Date;
+            end: Date;
+            milestones: {
+                status: "in_progress" | "completed" | "upcoming" | "overdue";
+                id: string;
+                title: string;
+                date: Date;
+            }[];
+        };
+        resources: {
+            type: "budget" | "personnel" | "equipment" | "software";
+            description: string;
+            quantity?: number | undefined;
+            cost?: number | undefined;
+        }[];
+        environment?: string | undefined;
+    } | undefined;
+}, {
+    createdAt: Date;
+    priority: Priority;
+    status: POVStatus;
+    id: string;
+    updatedAt: Date;
+    title: string;
+    description: string;
+    projectId: string;
+    createdBy: string;
+    owner: string;
+    lastModifiedBy: string;
+    objectives?: {
+        status: "in_progress" | "completed" | "pending" | "failed";
+        id: string;
+        description: string;
+        success_criteria: string;
+        weight?: number | undefined;
+    }[] | undefined;
+    successMetrics?: {
+        businessValue?: {
+            roi?: number | undefined;
+            costSavings?: number | undefined;
+            riskReduction?: string | undefined;
+            efficiency_gains?: string | undefined;
+        } | undefined;
+        technicalMetrics?: {
+            performance?: Record<string, number> | undefined;
+            reliability?: number | undefined;
+            security_score?: number | undefined;
+        } | undefined;
+    } | undefined;
+    team?: string[] | undefined;
+    testPlan?: {
+        scenarios: string[];
+        timeline: {
+            start: Date;
+            end: Date;
+            milestones: {
+                status: "in_progress" | "completed" | "upcoming" | "overdue";
+                id: string;
+                title: string;
+                date: Date;
+            }[];
+        };
+        environment?: string | undefined;
+        resources?: {
+            type: "budget" | "personnel" | "equipment" | "software";
+            description: string;
+            quantity?: number | undefined;
+            cost?: number | undefined;
+        }[] | undefined;
+    } | undefined;
+    phases?: {
+        status: TaskStatus;
+        id: string;
+        name: string;
+        startDate: Date;
+        description?: string | undefined;
+        endDate?: Date | undefined;
+        tasks?: string[] | undefined;
+    }[] | undefined;
+}>;
+type POV = z.infer<typeof POVSchema>;
+/**
+ * TRR (Technical Risk Review) Schema
+ */
+declare const TRRSchema: z.ZodObject<{
+    id: z.ZodString;
+    projectId: z.ZodString;
+    povId: z.ZodOptional<z.ZodString>;
+    title: z.ZodString;
+    description: z.ZodString;
+    status: z.ZodNativeEnum<typeof TRRStatus>;
+    priority: z.ZodNativeEnum<typeof Priority>;
+    riskAssessment: z.ZodObject<{
+        overall_score: z.ZodNumber;
+        categories: z.ZodArray<z.ZodObject<{
+            category: z.ZodString;
+            score: z.ZodNumber;
+            description: z.ZodString;
+            mitigation: z.ZodOptional<z.ZodString>;
+            evidence: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+        }, "strip", z.ZodTypeAny, {
+            description: string;
+            category: string;
+            score: number;
+            evidence: string[];
+            mitigation?: string | undefined;
+        }, {
+            description: string;
+            category: string;
+            score: number;
+            mitigation?: string | undefined;
+            evidence?: string[] | undefined;
+        }>, "many">;
+    }, "strip", z.ZodTypeAny, {
+        overall_score: number;
+        categories: {
+            description: string;
+            category: string;
+            score: number;
+            evidence: string[];
+            mitigation?: string | undefined;
+        }[];
+    }, {
+        overall_score: number;
+        categories: {
+            description: string;
+            category: string;
+            score: number;
+            mitigation?: string | undefined;
+            evidence?: string[] | undefined;
+        }[];
+    }>;
+    findings: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        id: z.ZodString;
+        title: z.ZodString;
+        description: z.ZodString;
+        severity: z.ZodEnum<["low", "medium", "high", "critical"]>;
+        category: z.ZodString;
+        evidence: z.ZodDefault<z.ZodArray<z.ZodObject<{
+            type: z.ZodEnum<["screenshot", "log", "document", "test_result"]>;
+            url: z.ZodString;
+            description: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            type: "document" | "screenshot" | "log" | "test_result";
+            url: string;
+            description?: string | undefined;
+        }, {
+            type: "document" | "screenshot" | "log" | "test_result";
+            url: string;
+            description?: string | undefined;
+        }>, "many">>;
+        recommendation: z.ZodOptional<z.ZodString>;
+        status: z.ZodEnum<["open", "addressed", "accepted_risk", "false_positive"]>;
+    }, "strip", z.ZodTypeAny, {
+        status: "open" | "addressed" | "accepted_risk" | "false_positive";
+        id: string;
+        title: string;
+        description: string;
+        category: string;
+        evidence: {
+            type: "document" | "screenshot" | "log" | "test_result";
+            url: string;
+            description?: string | undefined;
+        }[];
+        severity: "low" | "medium" | "high" | "critical";
+        recommendation?: string | undefined;
+    }, {
+        status: "open" | "addressed" | "accepted_risk" | "false_positive";
+        id: string;
+        title: string;
+        description: string;
+        category: string;
+        severity: "low" | "medium" | "high" | "critical";
+        evidence?: {
+            type: "document" | "screenshot" | "log" | "test_result";
+            url: string;
+            description?: string | undefined;
+        }[] | undefined;
+        recommendation?: string | undefined;
+    }>, "many">>;
+    validation: z.ZodOptional<z.ZodObject<{
+        validator: z.ZodOptional<z.ZodString>;
+        validatedAt: z.ZodOptional<z.ZodDate>;
+        validationNotes: z.ZodOptional<z.ZodString>;
+        approved: z.ZodOptional<z.ZodBoolean>;
+    }, "strip", z.ZodTypeAny, {
+        approved?: boolean | undefined;
+        validator?: string | undefined;
+        validatedAt?: Date | undefined;
+        validationNotes?: string | undefined;
+    }, {
+        approved?: boolean | undefined;
+        validator?: string | undefined;
+        validatedAt?: Date | undefined;
+        validationNotes?: string | undefined;
+    }>>;
+    signoff: z.ZodOptional<z.ZodObject<{
+        approver: z.ZodOptional<z.ZodString>;
+        approvedAt: z.ZodOptional<z.ZodDate>;
+        signoffNotes: z.ZodOptional<z.ZodString>;
+        digitalSignature: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        approver?: string | undefined;
+        approvedAt?: Date | undefined;
+        signoffNotes?: string | undefined;
+        digitalSignature?: string | undefined;
+    }, {
+        approver?: string | undefined;
+        approvedAt?: Date | undefined;
+        signoffNotes?: string | undefined;
+        digitalSignature?: string | undefined;
+    }>>;
+    owner: z.ZodString;
+    reviewers: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    createdAt: z.ZodDate;
+    updatedAt: z.ZodDate;
+    createdBy: z.ZodString;
+    lastModifiedBy: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    createdAt: Date;
+    priority: Priority;
+    status: TRRStatus;
+    id: string;
+    updatedAt: Date;
+    title: string;
+    description: string;
+    projectId: string;
+    createdBy: string;
+    reviewers: string[];
+    owner: string;
+    lastModifiedBy: string;
+    riskAssessment: {
+        overall_score: number;
+        categories: {
+            description: string;
+            category: string;
+            score: number;
+            evidence: string[];
+            mitigation?: string | undefined;
+        }[];
+    };
+    findings: {
+        status: "open" | "addressed" | "accepted_risk" | "false_positive";
+        id: string;
+        title: string;
+        description: string;
+        category: string;
+        evidence: {
+            type: "document" | "screenshot" | "log" | "test_result";
+            url: string;
+            description?: string | undefined;
+        }[];
+        severity: "low" | "medium" | "high" | "critical";
+        recommendation?: string | undefined;
+    }[];
+    povId?: string | undefined;
+    validation?: {
+        approved?: boolean | undefined;
+        validator?: string | undefined;
+        validatedAt?: Date | undefined;
+        validationNotes?: string | undefined;
+    } | undefined;
+    signoff?: {
+        approver?: string | undefined;
+        approvedAt?: Date | undefined;
+        signoffNotes?: string | undefined;
+        digitalSignature?: string | undefined;
+    } | undefined;
+}, {
+    createdAt: Date;
+    priority: Priority;
+    status: TRRStatus;
+    id: string;
+    updatedAt: Date;
+    title: string;
+    description: string;
+    projectId: string;
+    createdBy: string;
+    owner: string;
+    lastModifiedBy: string;
+    riskAssessment: {
+        overall_score: number;
+        categories: {
+            description: string;
+            category: string;
+            score: number;
+            mitigation?: string | undefined;
+            evidence?: string[] | undefined;
+        }[];
+    };
+    povId?: string | undefined;
+    reviewers?: string[] | undefined;
+    validation?: {
+        approved?: boolean | undefined;
+        validator?: string | undefined;
+        validatedAt?: Date | undefined;
+        validationNotes?: string | undefined;
+    } | undefined;
+    findings?: {
+        status: "open" | "addressed" | "accepted_risk" | "false_positive";
+        id: string;
+        title: string;
+        description: string;
+        category: string;
+        severity: "low" | "medium" | "high" | "critical";
+        evidence?: {
+            type: "document" | "screenshot" | "log" | "test_result";
+            url: string;
+            description?: string | undefined;
+        }[] | undefined;
+        recommendation?: string | undefined;
+    }[] | undefined;
+    signoff?: {
+        approver?: string | undefined;
+        approvedAt?: Date | undefined;
+        signoffNotes?: string | undefined;
+        digitalSignature?: string | undefined;
+    } | undefined;
+}>;
+type TRR = z.infer<typeof TRRSchema>;
+/**
+ * Timeline Event Schema
+ * Tracks all significant events across projects
+ */
+declare const TimelineEventSchema: z.ZodObject<{
+    id: z.ZodString;
+    type: z.ZodEnum<["project_created", "project_updated", "project_completed", "pov_created", "pov_phase_completed", "pov_completed", "trr_created", "trr_submitted", "trr_approved", "task_created", "task_completed", "milestone_reached", "note_added", "team_member_added", "status_changed"]>;
+    title: z.ZodString;
+    description: z.ZodOptional<z.ZodString>;
+    projectId: z.ZodOptional<z.ZodString>;
+    povId: z.ZodOptional<z.ZodString>;
+    trrId: z.ZodOptional<z.ZodString>;
+    taskId: z.ZodOptional<z.ZodString>;
+    actor: z.ZodString;
+    metadata: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+    timestamp: z.ZodDate;
+    createdAt: z.ZodDate;
+}, "strip", z.ZodTypeAny, {
+    createdAt: Date;
+    id: string;
+    title: string;
+    type: "project_created" | "project_updated" | "project_completed" | "pov_created" | "pov_phase_completed" | "pov_completed" | "trr_created" | "trr_submitted" | "trr_approved" | "task_created" | "task_completed" | "milestone_reached" | "note_added" | "team_member_added" | "status_changed";
+    timestamp: Date;
+    actor: string;
+    metadata?: Record<string, unknown> | undefined;
+    description?: string | undefined;
+    projectId?: string | undefined;
+    povId?: string | undefined;
+    trrId?: string | undefined;
+    taskId?: string | undefined;
+}, {
+    createdAt: Date;
+    id: string;
+    title: string;
+    type: "project_created" | "project_updated" | "project_completed" | "pov_created" | "pov_phase_completed" | "pov_completed" | "trr_created" | "trr_submitted" | "trr_approved" | "task_created" | "task_completed" | "milestone_reached" | "note_added" | "team_member_added" | "status_changed";
+    timestamp: Date;
+    actor: string;
+    metadata?: Record<string, unknown> | undefined;
+    description?: string | undefined;
+    projectId?: string | undefined;
+    povId?: string | undefined;
+    trrId?: string | undefined;
+    taskId?: string | undefined;
+}>;
+type TimelineEvent = z.infer<typeof TimelineEventSchema>;
+
+/**
+ * Relationship Management Service
+ * Manages relationships between TRRs, POVs, Projects, and Demo Scenarios
+ * Ensures referential integrity and proper lifecycle management
+ */
+
+interface RelationshipValidation {
+    valid: boolean;
+    errors: string[];
+    warnings: string[];
+}
+interface RelationshipGraph {
+    projectId: string;
+    povs: POV[];
+    trrs: TRR[];
+    scenarios: any[];
+    relationships: {
+        povToTRR: Record<string, string[]>;
+        povToScenario: Record<string, string[]>;
+        trrToPOV: Record<string, string>;
+        scenarioToPOV: Record<string, string>;
+    };
+}
+declare class RelationshipManagementService {
+    /**
+     * Associate a TRR with a POV
+     */
+    associateTRRWithPOV(trrId: string, povId: string): Promise<{
+        success: boolean;
+        error?: string;
+    }>;
+    /**
+     * Associate a POV with a Demo Scenario
+     */
+    associatePOVWithScenario(povId: string, scenarioId: string): Promise<{
+        success: boolean;
+        error?: string;
+    }>;
+    /**
+     * Associate POV with Project
+     */
+    associatePOVWithProject(povId: string, projectId: string): Promise<{
+        success: boolean;
+        error?: string;
+    }>;
+    /**
+     * Associate TRR with Project
+     */
+    associateTRRWithProject(trrId: string, projectId: string): Promise<{
+        success: boolean;
+        error?: string;
+    }>;
+    /**
+     * Get relationship graph for a project
+     */
+    getProjectRelationshipGraph(projectId: string): Promise<RelationshipGraph | null>;
+    /**
+     * Validate relationships for integrity
+     */
+    validateRelationships(projectId: string): Promise<RelationshipValidation>;
+    /**
+     * Automatically fix broken relationships
+     */
+    repairRelationships(projectId: string): Promise<{
+        fixed: number;
+        errors: string[];
+    }>;
+    /**
+     * Log relationship changes for audit
+     */
+    private logRelationshipChange;
+    /**
+     * Get POVs for a TRR
+     */
+    getPOVForTRR(trrId: string): Promise<POV | null>;
+    /**
+     * Get TRRs for a POV
+     */
+    getTRRsForPOV(povId: string): Promise<TRR[]>;
+    /**
+     * Get Scenarios for a POV
+     */
+    getScenariosForPOV(povId: string): Promise<any[]>;
+}
+declare const relationshipManagementService: RelationshipManagementService;
+
+/**
+ * Dynamic Record Population Service
+ * Automatically creates and populates records as user flows progress
+ * Handles lifecycle management for POVs, TRRs, Projects, and Scenarios
+ */
+
+interface RecordCreationOptions {
+    autoPopulateDefaults?: boolean;
+    createRelationships?: boolean;
+    userId?: string;
+}
+interface LifecycleTransition {
+    recordId: string;
+    recordType: 'pov' | 'trr' | 'project' | 'scenario';
+    from: string;
+    to: string;
+    triggeredBy: string;
+    timestamp: Date;
+    metadata?: any;
+}
+declare class DynamicRecordService {
+    /**
+     * Create a new POV with defaults and relationships
+     */
+    createPOV(data: Partial<POV>, projectId: string, options?: RecordCreationOptions): Promise<{
+        success: boolean;
+        povId?: string;
+        error?: string;
+    }>;
+    /**
+     * Create a new TRR with defaults and relationships
+     */
+    createTRR(data: Partial<TRR>, projectId: string, povId?: string, options?: RecordCreationOptions): Promise<{
+        success: boolean;
+        trrId?: string;
+        error?: string;
+    }>;
+    /**
+     * Create a new Demo Scenario
+     */
+    createScenario(data: any, povId?: string, options?: RecordCreationOptions): Promise<{
+        success: boolean;
+        scenarioId?: string;
+        error?: string;
+    }>;
+    /**
+     * Transition POV to next phase
+     */
+    transitionPOVPhase(povId: string, userId: string): Promise<{
+        success: boolean;
+        nextPhase?: string;
+        error?: string;
+    }>;
+    /**
+     * Transition TRR through workflow
+     */
+    transitionTRRStatus(trrId: string, newStatus: string, userId: string): Promise<{
+        success: boolean;
+        error?: string;
+    }>;
+    /**
+     * Log lifecycle event
+     */
+    private logLifecycleEvent;
+    /**
+     * Log user activity
+     */
+    private logActivity;
+    /**
+     * Auto-populate related records when creating a POV
+     */
+    autoPopulatePOVRecords(povId: string, userId: string): Promise<{
+        created: string[];
+        errors: string[];
+    }>;
+    private getDatabase;
+}
+declare const dynamicRecordService: DynamicRecordService;
+
+/**
+ * Terraform Generation Service
+ * Generates Terraform deployment configurations from scenarios
+ * Enables infrastructure-as-code deployment for demo scenarios
+ */
+interface TerraformConfig {
+    version: string;
+    provider: 'gcp' | 'aws' | 'azure';
+    region: string;
+    projectId?: string;
+    resources: TerraformResource[];
+}
+interface TerraformResource {
+    type: string;
+    name: string;
+    config: Record<string, any>;
+    dependencies?: string[];
+}
+interface ScenarioTerraformOutput {
+    filename: string;
+    content: string;
+    format: 'hcl' | 'json';
+    variables: Record<string, any>;
+    outputs: Record<string, any>;
+}
+declare class TerraformGenerationService {
+    /**
+     * Generate Terraform configuration from a scenario
+     */
+    generateTerraformForScenario(scenarioId: string, options?: {
+        provider?: 'gcp' | 'aws' | 'azure';
+        format?: 'hcl' | 'json';
+        includeVariables?: boolean;
+        includeOutputs?: boolean;
+    }): Promise<ScenarioTerraformOutput>;
+    /**
+     * Generate Terraform resources from scenario configuration
+     */
+    private generateResourcesFromScenario;
+    /**
+     * Generate resources from scenario step
+     */
+    private generateResourcesFromStep;
+    /**
+     * Generate HCL format Terraform configuration
+     */
+    private generateHCL;
+    /**
+     * Generate variables block in HCL
+     */
+    private generateVariablesHCL;
+    /**
+     * Generate resource block in HCL
+     */
+    private generateResourceHCL;
+    /**
+     * Format HCL value with proper indentation
+     */
+    private formatHCLValue;
+    /**
+     * Generate outputs block in HCL
+     */
+    private generateOutputsHCL;
+    /**
+     * Generate JSON format Terraform configuration
+     */
+    private generateJSON;
+    /**
+     * Extract variables from configuration
+     */
+    private extractVariables;
+    /**
+     * Generate output values
+     */
+    private generateOutputs;
+    /**
+     * Helper methods to determine required resources
+     */
+    private requiresGKE;
+    private requiresFirestore;
+    private requiresStorage;
+    private requiresBigQuery;
+    private requiresCloudFunctions;
+    /**
+     * Generate Terraform configuration as downloadable file
+     */
+    generateDownloadableFile(scenarioId: string, format?: 'hcl' | 'json'): Promise<{
+        filename: string;
+        content: Buffer;
+        mimeType: string;
+    }>;
+}
+declare const terraformGenerationService: TerraformGenerationService;
+
 interface FirestoreConfig {
     app: FirebaseApp;
     useEmulator?: boolean;
@@ -910,16 +2145,16 @@ declare const UserSchema: z.ZodObject<{
     role: "admin" | "user";
     createdAt: Date;
     id: string;
-    email: string;
     updatedAt: Date;
     name: string;
+    email: string;
 }, {
     role: "admin" | "user";
     createdAt: Date;
     id: string;
-    email: string;
     updatedAt: Date;
     name: string;
+    email: string;
 }>;
 type User = z.infer<typeof UserSchema>;
 
@@ -944,6 +2179,225 @@ declare const ChatValidationRules: {
     maxMessages: number;
     maxTitleLength: number;
 };
+
+/**
+ * Storage Adapter Interface
+ * Abstraction for file storage operations
+ * Supports both Firebase Storage and MinIO (S3-compatible)
+ */
+interface UploadOptions {
+    contentType?: string;
+    customMetadata?: Record<string, string>;
+    cacheControl?: string;
+}
+interface StorageFile {
+    name: string;
+    fullPath: string;
+    size: number;
+    contentType?: string;
+    bucket: string;
+    metadata?: Record<string, any>;
+    timeCreated?: Date;
+    updated?: Date;
+}
+interface StorageAdapter {
+    /**
+     * Upload a file to storage
+     * @param path - Path where file will be stored (e.g., 'content-hub/notes/file.md')
+     * @param data - File data (Blob, File, ArrayBuffer, or Uint8Array)
+     * @param options - Upload options (content type, metadata, etc.)
+     */
+    upload(path: string, data: Blob | File | ArrayBuffer | Uint8Array, options?: UploadOptions): Promise<StorageFile>;
+    /**
+     * Get download URL for a file
+     * @param path - Path to the file
+     */
+    getDownloadURL(path: string): Promise<string>;
+    /**
+     * Download file data
+     * @param path - Path to the file
+     */
+    download(path: string): Promise<Uint8Array>;
+    /**
+     * Delete a file
+     * @param path - Path to the file
+     */
+    delete(path: string): Promise<void>;
+    /**
+     * List files in a directory
+     * @param path - Directory path
+     * @param options - List options (prefix, maxResults, etc.)
+     */
+    list(path: string, options?: {
+        maxResults?: number;
+        pageToken?: string;
+    }): Promise<{
+        items: StorageFile[];
+        nextPageToken?: string;
+    }>;
+    /**
+     * Get file metadata
+     * @param path - Path to the file
+     */
+    getMetadata(path: string): Promise<StorageFile>;
+    /**
+     * Update file metadata
+     * @param path - Path to the file
+     * @param metadata - Metadata to update
+     */
+    updateMetadata(path: string, metadata: Partial<StorageFile>): Promise<StorageFile>;
+    /**
+     * Check if file exists
+     * @param path - Path to the file
+     */
+    exists(path: string): Promise<boolean>;
+    /**
+     * Initialize the storage adapter
+     */
+    initialize(): Promise<void>;
+    /**
+     * Check if the adapter is initialized
+     */
+    isInitialized(): boolean;
+}
+
+/**
+ * Storage Factory
+ * Automatically selects the appropriate storage adapter based on environment configuration
+ */
+
+type StorageMode = 'firebase' | 'minio' | 's3';
+/**
+ * Get the storage adapter instance
+ * This is the main function to use throughout the application
+ */
+declare function getStorage(): StorageAdapter;
+/**
+ * Initialize storage with explicit configuration
+ * Useful for testing or specific deployment scenarios
+ */
+declare function initializeStorage(config?: {
+    mode?: StorageMode;
+    options?: any;
+}): Promise<StorageAdapter>;
+
+/**
+ * Database Adapter Interface
+ * Provides abstraction layer for both Firebase Firestore and PostgreSQL
+ */
+interface QueryFilter {
+    field: string;
+    operator: '==' | '!=' | '>' | '<' | '>=' | '<=' | 'in' | 'array-contains';
+    value: any;
+}
+interface QueryOptions {
+    limit?: number;
+    offset?: number;
+    orderBy?: string;
+    orderDirection?: 'asc' | 'desc';
+    filters?: QueryFilter[];
+}
+interface DatabaseAdapter {
+    findMany<T>(collection: string, options?: QueryOptions): Promise<T[]>;
+    findOne<T>(collection: string, id: string): Promise<T | null>;
+    findByField<T>(collection: string, field: string, value: any): Promise<T | null>;
+    create<T>(collection: string, data: Partial<T>): Promise<T>;
+    update<T>(collection: string, id: string, data: Partial<T>): Promise<T>;
+    delete(collection: string, id: string): Promise<void>;
+    createMany<T>(collection: string, data: Partial<T>[]): Promise<T[]>;
+    updateMany(collection: string, ids: string[], data: any): Promise<void>;
+    deleteMany(collection: string, ids: string[]): Promise<void>;
+    transaction<T>(callback: (tx: DatabaseTransaction) => Promise<T>): Promise<T>;
+    exists(collection: string, id: string): Promise<boolean>;
+    count(collection: string, options?: QueryOptions): Promise<number>;
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    isConnected(): boolean;
+}
+interface DatabaseTransaction {
+    findOne<T>(collection: string, id: string): Promise<T | null>;
+    create<T>(collection: string, data: Partial<T>): Promise<T>;
+    update<T>(collection: string, id: string, data: Partial<T>): Promise<T>;
+    delete(collection: string, id: string): Promise<void>;
+}
+
+/**
+ * Database Factory
+ * Returns the appropriate database adapter based on configuration
+ */
+
+/**
+ * Convenience function to get the database adapter
+ */
+declare function getDatabase(): DatabaseAdapter;
+
+/**
+ * Authentication Adapter Interface
+ * Provides abstraction layer for both Firebase Auth and Keycloak
+ */
+interface AuthUser {
+    uid: string;
+    email: string | null;
+    displayName: string | null;
+    photoURL: string | null;
+    emailVerified: boolean;
+    role?: string;
+    customClaims?: Record<string, any>;
+}
+interface AuthResult {
+    user: AuthUser;
+    token: string;
+    refreshToken?: string;
+}
+interface TokenPayload {
+    uid: string;
+    email?: string;
+    role?: string;
+    exp?: number;
+    iat?: number;
+    [key: string]: any;
+}
+interface SignInCredentials {
+    email: string;
+    password: string;
+}
+interface SignUpCredentials extends SignInCredentials {
+    displayName?: string;
+}
+interface AuthAdapter {
+    signIn(credentials: SignInCredentials): Promise<AuthResult>;
+    signUp(credentials: SignUpCredentials): Promise<AuthResult>;
+    signOut(): Promise<void>;
+    signInWithGoogle(): Promise<AuthResult>;
+    signInWithMicrosoft?(): Promise<AuthResult>;
+    getCurrentUser(): Promise<AuthUser | null>;
+    getUserById(uid: string): Promise<AuthUser | null>;
+    updateUserProfile(uid: string, data: Partial<AuthUser>): Promise<AuthUser>;
+    deleteUser(uid: string): Promise<void>;
+    getIdToken(forceRefresh?: boolean): Promise<string | null>;
+    verifyToken(token: string): Promise<TokenPayload>;
+    refreshToken?(refreshToken: string): Promise<AuthResult>;
+    sendPasswordResetEmail(email: string): Promise<void>;
+    confirmPasswordReset(code: string, newPassword: string): Promise<void>;
+    updatePassword(newPassword: string): Promise<void>;
+    sendEmailVerification?(): Promise<void>;
+    verifyEmail?(code: string): Promise<void>;
+    setCustomClaims?(uid: string, claims: Record<string, any>): Promise<void>;
+    getCustomClaims?(uid: string): Promise<Record<string, any>>;
+    onAuthStateChanged(callback: (user: AuthUser | null) => void): () => void;
+    initialize(): Promise<void>;
+    isInitialized(): boolean;
+}
+
+/**
+ * Authentication Factory
+ * Returns the appropriate auth adapter based on configuration
+ */
+
+/**
+ * Convenience function to get the auth adapter
+ */
+declare function getAuth(): AuthAdapter;
 
 /**
  * User Role Definitions
@@ -1028,13 +2482,13 @@ declare const UserProfileSchema: z.ZodObject<{
             delete: z.ZodDefault<z.ZodBoolean>;
             viewAll: z.ZodDefault<z.ZodBoolean>;
         }, "strip", z.ZodTypeAny, {
-            create: boolean;
             delete: boolean;
+            create: boolean;
             edit: boolean;
             viewAll: boolean;
         }, {
-            create?: boolean | undefined;
             delete?: boolean | undefined;
+            create?: boolean | undefined;
             edit?: boolean | undefined;
             viewAll?: boolean | undefined;
         }>>;
@@ -1045,14 +2499,14 @@ declare const UserProfileSchema: z.ZodObject<{
             approve: z.ZodDefault<z.ZodBoolean>;
             viewAll: z.ZodDefault<z.ZodBoolean>;
         }, "strip", z.ZodTypeAny, {
-            create: boolean;
             delete: boolean;
+            create: boolean;
             edit: boolean;
             viewAll: boolean;
             approve: boolean;
         }, {
-            create?: boolean | undefined;
             delete?: boolean | undefined;
+            create?: boolean | undefined;
             edit?: boolean | undefined;
             viewAll?: boolean | undefined;
             approve?: boolean | undefined;
@@ -1092,12 +2546,12 @@ declare const UserProfileSchema: z.ZodObject<{
             admin: z.ZodDefault<z.ZodBoolean>;
         }, "strip", z.ZodTypeAny, {
             admin: boolean;
-            basic: boolean;
             advanced: boolean;
+            basic: boolean;
         }, {
             admin?: boolean | undefined;
-            basic?: boolean | undefined;
             advanced?: boolean | undefined;
+            basic?: boolean | undefined;
         }>>;
         analytics: z.ZodDefault<z.ZodObject<{
             view: z.ZodDefault<z.ZodBoolean>;
@@ -1118,26 +2572,31 @@ declare const UserProfileSchema: z.ZodObject<{
             create: z.ZodDefault<z.ZodBoolean>;
             delete: z.ZodDefault<z.ZodBoolean>;
         }, "strip", z.ZodTypeAny, {
-            create: boolean;
             delete: boolean;
+            create: boolean;
             edit: boolean;
             view: boolean;
         }, {
-            create?: boolean | undefined;
             delete?: boolean | undefined;
+            create?: boolean | undefined;
             edit?: boolean | undefined;
             view?: boolean | undefined;
         }>>;
     }, "strip", z.ZodTypeAny, {
+        analytics: {
+            view: boolean;
+            export: boolean;
+            detailed: boolean;
+        };
         povManagement: {
-            create: boolean;
             delete: boolean;
+            create: boolean;
             edit: boolean;
             viewAll: boolean;
         };
         trrManagement: {
-            create: boolean;
             delete: boolean;
+            create: boolean;
             edit: boolean;
             viewAll: boolean;
             approve: boolean;
@@ -1155,30 +2614,30 @@ declare const UserProfileSchema: z.ZodObject<{
         };
         terminal: {
             admin: boolean;
-            basic: boolean;
             advanced: boolean;
-        };
-        analytics: {
-            view: boolean;
-            export: boolean;
-            detailed: boolean;
+            basic: boolean;
         };
         userManagement: {
-            create: boolean;
             delete: boolean;
+            create: boolean;
             edit: boolean;
             view: boolean;
         };
     }, {
+        analytics?: {
+            view?: boolean | undefined;
+            export?: boolean | undefined;
+            detailed?: boolean | undefined;
+        } | undefined;
         povManagement?: {
-            create?: boolean | undefined;
             delete?: boolean | undefined;
+            create?: boolean | undefined;
             edit?: boolean | undefined;
             viewAll?: boolean | undefined;
         } | undefined;
         trrManagement?: {
-            create?: boolean | undefined;
             delete?: boolean | undefined;
+            create?: boolean | undefined;
             edit?: boolean | undefined;
             viewAll?: boolean | undefined;
             approve?: boolean | undefined;
@@ -1196,17 +2655,12 @@ declare const UserProfileSchema: z.ZodObject<{
         } | undefined;
         terminal?: {
             admin?: boolean | undefined;
-            basic?: boolean | undefined;
             advanced?: boolean | undefined;
-        } | undefined;
-        analytics?: {
-            view?: boolean | undefined;
-            export?: boolean | undefined;
-            detailed?: boolean | undefined;
+            basic?: boolean | undefined;
         } | undefined;
         userManagement?: {
-            create?: boolean | undefined;
             delete?: boolean | undefined;
+            create?: boolean | undefined;
             edit?: boolean | undefined;
             view?: boolean | undefined;
         } | undefined;
@@ -1218,19 +2672,25 @@ declare const UserProfileSchema: z.ZodObject<{
     role: UserRole;
     createdAt: Date;
     status: UserStatus;
+    updatedAt: Date;
     uid: string;
     email: string;
     displayName: string;
     permissions: {
+        analytics: {
+            view: boolean;
+            export: boolean;
+            detailed: boolean;
+        };
         povManagement: {
-            create: boolean;
             delete: boolean;
+            create: boolean;
             edit: boolean;
             viewAll: boolean;
         };
         trrManagement: {
-            create: boolean;
             delete: boolean;
+            create: boolean;
             edit: boolean;
             viewAll: boolean;
             approve: boolean;
@@ -1248,17 +2708,12 @@ declare const UserProfileSchema: z.ZodObject<{
         };
         terminal: {
             admin: boolean;
-            basic: boolean;
             advanced: boolean;
-        };
-        analytics: {
-            view: boolean;
-            export: boolean;
-            detailed: boolean;
+            basic: boolean;
         };
         userManagement: {
-            create: boolean;
             delete: boolean;
+            create: boolean;
             edit: boolean;
             view: boolean;
         };
@@ -1275,29 +2730,34 @@ declare const UserProfileSchema: z.ZodObject<{
         };
         theme: "light" | "dark" | "system";
     };
-    updatedAt: Date;
     teams: string[];
-    manager?: string | undefined;
     title?: string | undefined;
+    manager?: string | undefined;
     department?: string | undefined;
     lastLoginAt?: Date | undefined;
 }, {
     role: UserRole;
     createdAt: Date;
     status: UserStatus;
+    updatedAt: Date;
     uid: string;
     email: string;
     displayName: string;
     permissions: {
+        analytics?: {
+            view?: boolean | undefined;
+            export?: boolean | undefined;
+            detailed?: boolean | undefined;
+        } | undefined;
         povManagement?: {
-            create?: boolean | undefined;
             delete?: boolean | undefined;
+            create?: boolean | undefined;
             edit?: boolean | undefined;
             viewAll?: boolean | undefined;
         } | undefined;
         trrManagement?: {
-            create?: boolean | undefined;
             delete?: boolean | undefined;
+            create?: boolean | undefined;
             edit?: boolean | undefined;
             viewAll?: boolean | undefined;
             approve?: boolean | undefined;
@@ -1315,24 +2775,18 @@ declare const UserProfileSchema: z.ZodObject<{
         } | undefined;
         terminal?: {
             admin?: boolean | undefined;
-            basic?: boolean | undefined;
             advanced?: boolean | undefined;
-        } | undefined;
-        analytics?: {
-            view?: boolean | undefined;
-            export?: boolean | undefined;
-            detailed?: boolean | undefined;
+            basic?: boolean | undefined;
         } | undefined;
         userManagement?: {
-            create?: boolean | undefined;
             delete?: boolean | undefined;
+            create?: boolean | undefined;
             edit?: boolean | undefined;
             view?: boolean | undefined;
         } | undefined;
     };
-    updatedAt: Date;
-    manager?: string | undefined;
     title?: string | undefined;
+    manager?: string | undefined;
     department?: string | undefined;
     preferences?: {
         dashboard?: {
@@ -1356,52 +2810,6 @@ type UserProfile = z.infer<typeof UserProfileSchema>;
  */
 declare const ROLE_PERMISSIONS: Record<UserRole, Partial<UserProfile['permissions']>>;
 
-/**
- * Timeline Event Schema
- * Tracks all significant events across projects
- */
-declare const TimelineEventSchema: z.ZodObject<{
-    id: z.ZodString;
-    type: z.ZodEnum<["project_created", "project_updated", "project_completed", "pov_created", "pov_phase_completed", "pov_completed", "trr_created", "trr_submitted", "trr_approved", "task_created", "task_completed", "milestone_reached", "note_added", "team_member_added", "status_changed"]>;
-    title: z.ZodString;
-    description: z.ZodOptional<z.ZodString>;
-    projectId: z.ZodOptional<z.ZodString>;
-    povId: z.ZodOptional<z.ZodString>;
-    trrId: z.ZodOptional<z.ZodString>;
-    taskId: z.ZodOptional<z.ZodString>;
-    actor: z.ZodString;
-    metadata: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
-    timestamp: z.ZodDate;
-    createdAt: z.ZodDate;
-}, "strip", z.ZodTypeAny, {
-    createdAt: Date;
-    timestamp: Date;
-    id: string;
-    type: "project_created" | "project_updated" | "project_completed" | "pov_created" | "pov_phase_completed" | "pov_completed" | "trr_created" | "trr_submitted" | "trr_approved" | "task_created" | "task_completed" | "milestone_reached" | "note_added" | "team_member_added" | "status_changed";
-    title: string;
-    actor: string;
-    metadata?: Record<string, unknown> | undefined;
-    description?: string | undefined;
-    projectId?: string | undefined;
-    povId?: string | undefined;
-    trrId?: string | undefined;
-    taskId?: string | undefined;
-}, {
-    createdAt: Date;
-    timestamp: Date;
-    id: string;
-    type: "project_created" | "project_updated" | "project_completed" | "pov_created" | "pov_phase_completed" | "pov_completed" | "trr_created" | "trr_submitted" | "trr_approved" | "task_created" | "task_completed" | "milestone_reached" | "note_added" | "team_member_added" | "status_changed";
-    title: string;
-    actor: string;
-    metadata?: Record<string, unknown> | undefined;
-    description?: string | undefined;
-    projectId?: string | undefined;
-    povId?: string | undefined;
-    trrId?: string | undefined;
-    taskId?: string | undefined;
-}>;
-type TimelineEvent = z.infer<typeof TimelineEventSchema>;
-
 interface DatabaseClient {
     connect(): Promise<void>;
     disconnect(): Promise<void>;
@@ -1416,4 +2824,4 @@ interface TransactionContext {
     rollback(): Promise<void>;
 }
 
-export { type AnalyticsFilters, type AnalyticsResult, type AuthCredentials, type AuthResult, type AuthUser, type BlueprintSummary, CHAT_COLLECTION, type ChatSchema, ChatValidationRules, type CreateUserRequest, type DataScope, type DatabaseClient, type EngagementRecord, FirestoreClient, FirestoreQueries, type Permission, type QueryFilter, type QueryResult, type RBACContext, type RBACEvent, RBACMiddleware, ROLE_PERMISSIONS, type TimelineEvent, type TransactionContext, USER_COLLECTION, type UpdateUserRequest, type User, type UserActivity$1 as UserActivity, UserManagementService, type UserProfile, UserRole, UserSchema, type UserSettings, UserValidationRules, firebaseApp as app, auth, authService, calculateAvgCycleDays, calculateWinRate, db, dcContextStore, fetchAnalytics, fetchBlueprintSummary, fetchRegionEngagements, fetchUserEngagements, firebaseApp, forceReconnectEmulators, functions, getFirebaseConfig, isMockAuthMode, storage, useEmulator, userActivityService, userManagementService };
+export { type AdminAnalytics, type AnalyticsFilters, type AnalyticsResult, AnalyticsService, type AuthAdapter, type AuthCredentials, type AuthResult, type AuthUser, type BlueprintSummary, CHAT_COLLECTION, type ChatSchema, ChatValidationRules, type CreateUserRequest$1 as CreateUserRequest, type DataScope, type DatabaseAdapter, type DatabaseClient, DatabaseValidationService, DynamicRecordService, type EngagementRecord, FirestoreClient, FirestoreQueries, type LifecycleTransition, type Permission, type QueryFilter$1 as QueryFilter, type QueryOptions, type QueryResult, type RBACContext, type RBACEvent, RBACMiddleware, ROLE_PERMISSIONS, type RecordCreationOptions, type RelationshipGraph, RelationshipManagementService, type RelationshipValidation, type ScenarioTerraformOutput, type StorageAdapter, type StorageFile, type TerraformConfig, TerraformGenerationService, type TerraformResource, type TimelineEvent, type TransactionContext, USER_COLLECTION, type UpdateUserRequest$1 as UpdateUserRequest, type UploadOptions, type User, type UserActivity$1 as UserActivity, type UserAnalytics, UserManagementService, type UserProfile, UserRole, UserSchema, type UserSettings, UserValidationRules, type ValidationReport, type ValidationResult, analyticsService, firebaseApp as app, auth, authService, calculateAvgCycleDays, calculateWinRate, databaseValidationService, db, dcContextStore, dynamicRecordService, fetchAnalytics, fetchBlueprintSummary, fetchRegionEngagements, fetchUserEngagements, firebaseApp, forceReconnectEmulators, functions, getAuth, getDatabase, getFirebaseConfig, getStorage, initializeStorage, isMockAuthMode, relationshipManagementService, storage, terraformGenerationService, useEmulator, userActivityService, userManagementApiClient, userManagementService };

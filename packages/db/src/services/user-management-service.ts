@@ -4,6 +4,12 @@
  * settings, notifications, and organizational structure
  *
  * Migrated from henryreed.ai/hosting/lib/user-management-service.ts
+ *
+ * MIGRATION NOTE: This service now supports both Firebase Functions and REST API
+ * - In Firebase mode: Uses httpsCallable for createUserProfile/updateUserProfile
+ * - In self-hosted mode: Uses REST API endpoints
+ *
+ * Mode is determined by DEPLOYMENT_MODE or NEXT_PUBLIC_DEPLOYMENT_MODE environment variable
  */
 
 import { httpsCallable, HttpsCallableResult } from 'firebase/functions';
@@ -111,9 +117,35 @@ export interface UserSettings {
 
 export class UserManagementService {
 
-  // Firebase Functions
+  // Firebase Functions (used in Firebase mode)
   private createUserProfileFn = httpsCallable(functions, 'createUserProfile');
   private updateUserProfileFn = httpsCallable(functions, 'updateUserProfile');
+
+  // API client (lazy loaded for self-hosted mode)
+  private apiClient: any = null;
+
+  /**
+   * Get deployment mode
+   */
+  private getDeploymentMode(): 'firebase' | 'self-hosted' {
+    const mode = process.env.DEPLOYMENT_MODE || process.env.NEXT_PUBLIC_DEPLOYMENT_MODE;
+    return mode === 'self-hosted' ? 'self-hosted' : 'firebase';
+  }
+
+  /**
+   * Get API client (lazy load)
+   */
+  private async getApiClient() {
+    if (!this.apiClient && this.getDeploymentMode() === 'self-hosted') {
+      try {
+        const { userApiClient } = await import('@cortex/utils');
+        this.apiClient = userApiClient;
+      } catch (error) {
+        console.error('Failed to load API client:', error);
+      }
+    }
+    return this.apiClient;
+  }
 
   // ============================================================================
   // USER PROFILE OPERATIONS
@@ -121,11 +153,24 @@ export class UserManagementService {
 
   /**
    * Create a new user profile
+   * Uses Firebase Functions in Firebase mode, REST API in self-hosted mode
    */
   async createUser(userData: CreateUserRequest): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
     try {
-      const result: HttpsCallableResult<any> = await this.createUserProfileFn(userData);
-      return result.data;
+      const mode = this.getDeploymentMode();
+
+      if (mode === 'self-hosted') {
+        // Use REST API
+        const apiClient = await this.getApiClient();
+        if (!apiClient) {
+          throw new Error('API client not available');
+        }
+        return await apiClient.createUser(userData);
+      } else {
+        // Use Firebase Functions
+        const result: HttpsCallableResult<any> = await this.createUserProfileFn(userData);
+        return result.data;
+      }
     } catch (error: any) {
       console.error('Error creating user:', error);
       return {
@@ -137,11 +182,30 @@ export class UserManagementService {
 
   /**
    * Update user profile
+   * Uses Firebase Functions in Firebase mode, REST API in self-hosted mode
    */
   async updateUser(updates: UpdateUserRequest): Promise<{ success: boolean; error?: string }> {
     try {
-      const result: HttpsCallableResult<any> = await this.updateUserProfileFn(updates);
-      return result.data;
+      const mode = this.getDeploymentMode();
+
+      if (mode === 'self-hosted') {
+        // Use REST API
+        const apiClient = await this.getApiClient();
+        if (!apiClient) {
+          throw new Error('API client not available');
+        }
+
+        const userId = updates.uid;
+        if (!userId) {
+          throw new Error('User ID is required for update');
+        }
+
+        return await apiClient.updateUser(userId, updates);
+      } else {
+        // Use Firebase Functions
+        const result: HttpsCallableResult<any> = await this.updateUserProfileFn(updates);
+        return result.data;
+      }
     } catch (error: any) {
       console.error('Error updating user:', error);
       return {

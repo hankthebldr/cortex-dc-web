@@ -1,0 +1,341 @@
+// Prisma Schema for Self-Hosted Cortex DC Platform
+// Replaces Firestore with PostgreSQL
+// Optimized for high-performance and scalability
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // Connection pooling configuration
+  // Use connection pooler (e.g., PgBouncer) for production
+  // directUrl can be used for migrations
+}
+
+// ======================
+// User Model - Optimized with composite indexes
+// ======================
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  keycloakId  String   @unique @map("keycloak_id") @db.VarChar(255)
+  email       String   @unique @db.VarChar(255)
+  displayName String?  @map("display_name") @db.VarChar(255)
+  role        String   @default("user") @db.VarChar(50)
+  status      String   @default("active") @db.VarChar(50) // active, inactive, suspended
+
+  // Relationships
+  povs        POV[]    @relation("UserPOVs")
+  trrs        TRR[]    @relation("UserTRRs")
+
+  // Timestamps
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Optimized indexes for frequent queries
+  @@index([email])
+  @@index([keycloakId])
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+  // Composite index for role-based queries with filtering
+  @@index([role, status, createdAt])
+  @@map("users")
+}
+
+// ======================
+// POV (Proof of Value) Model
+// ======================
+model POV {
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String    @db.VarChar(255)
+  customer        String    @db.VarChar(255)
+  industry        String?   @db.VarChar(100)
+  description     String?   @db.Text
+  status          String    @default("pending") @db.VarChar(50)
+  priority        String    @default("medium") @db.VarChar(50)
+
+  // Timeline
+  startDate       DateTime? @map("start_date") @db.Date
+  endDate         DateTime? @map("end_date") @db.Date
+
+  // Assignment
+  assignedTo      String?   @map("assigned_to") @db.VarChar(255)
+
+  // Details (JSONB for flexibility)
+  objectives      Json?     @db.JsonB
+  successCriteria Json?     @map("success_criteria") @db.JsonB
+
+  // Relationships
+  createdBy       String    @map("created_by") @db.Uuid
+  creator         User      @relation("UserPOVs", fields: [createdBy], references: [id])
+  trrs            TRR[]     @relation("POVTRRs")
+
+  // Timestamps
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([createdBy])
+  @@index([status])
+  @@index([customer])
+  @@index([startDate])
+  @@map("povs")
+}
+
+// ======================
+// TRR (Technical Readiness Review) Model
+// ======================
+model TRR {
+  id                    String    @id @default(uuid()) @db.Uuid
+  name                  String    @db.VarChar(255)
+  description           String?   @db.Text
+  projectName           String?   @map("project_name") @db.VarChar(255)
+  projectId             String?   @map("project_id") @db.VarChar(100)
+
+  // POV Relationship
+  linkedPovId           String?   @map("linked_pov_id") @db.Uuid
+  linkedPov             POV?      @relation("POVTRRs", fields: [linkedPovId], references: [id], onDelete: SetNull)
+
+  // Timeline
+  dueDate               DateTime? @map("due_date") @db.Date
+
+  // Assignment
+  assignedTo            String?   @map("assigned_to") @db.VarChar(255)
+
+  // Status
+  status                String    @default("pending") @db.VarChar(50)
+  priority              String    @default("medium") @db.VarChar(50)
+  completionPercentage  Int       @default(0) @map("completion_percentage")
+
+  // Details (JSONB for flexibility)
+  scope                 Json?     @db.JsonB
+  technicalRequirements Json?     @map("technical_requirements") @db.JsonB
+  findings              Json?     @db.JsonB
+  recommendations       Json?     @db.JsonB
+
+  // Relationships
+  createdBy             String    @map("created_by") @db.Uuid
+  creator               User      @relation("UserTRRs", fields: [createdBy], references: [id])
+
+  // Timestamps
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([createdBy])
+  @@index([linkedPovId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("trrs")
+}
+
+// ======================
+// Activity Log Model - Event-based analytics
+// ======================
+model ActivityLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  action      String   @db.VarChar(100) // e.g., "login", "logout", "view_pov", "create_trr"
+  entityType  String?  @map("entity_type") @db.VarChar(50) // e.g., "POV", "TRR", "User"
+  entityId    String?  @map("entity_id") @db.Uuid
+  entityTitle String?  @map("entity_title") @db.VarChar(255)
+
+  // Event details (JSONB for flexibility)
+  metadata    Json?    @db.JsonB // Additional event data (e.g., IP address, user agent, etc.)
+
+  // Session tracking
+  sessionId   String?  @map("session_id") @db.VarChar(255)
+  ipAddress   String?  @map("ip_address") @db.VarChar(45) // IPv6 compatible
+  userAgent   String?  @map("user_agent") @db.Text
+
+  // Timestamps
+  timestamp   DateTime @default(now())
+
+  // Optimized indexes for analytics queries
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([timestamp(sort: Desc)]) // DESC index for recent activity queries
+  @@index([sessionId])
+  // Composite indexes for common query patterns
+  @@index([userId, timestamp(sort: Desc)])
+  @@index([action, timestamp(sort: Desc)])
+  @@index([entityType, timestamp(sort: Desc)])
+  @@map("activity_logs")
+}
+
+// ======================
+// Login Event Model - Optimized for auth analytics
+// ======================
+model LoginEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  email         String   @db.VarChar(255)
+  loginMethod   String   @map("login_method") @db.VarChar(50) // e.g., "email", "google", "okta_saml", "okta_oauth"
+  success       Boolean  @default(true)
+  failureReason String?  @map("failure_reason") @db.Text
+
+  // Session info
+  sessionId     String?  @map("session_id") @db.VarChar(255)
+  ipAddress     String?  @map("ip_address") @db.VarChar(45)
+  userAgent     String?  @map("user_agent") @db.Text
+  location      Json?    @db.JsonB // Geolocation data if available
+
+  // Device info
+  deviceType    String?  @map("device_type") @db.VarChar(50) // "desktop", "mobile", "tablet"
+  browser       String?  @db.VarChar(100)
+  os            String?  @db.VarChar(100)
+
+  // Timestamps
+  timestamp     DateTime @default(now())
+
+  // Optimized indexes for login analytics
+  @@index([userId])
+  @@index([email])
+  @@index([loginMethod])
+  @@index([success])
+  @@index([timestamp(sort: Desc)])
+  @@index([sessionId])
+  // Composite indexes for analytics queries
+  @@index([success, timestamp(sort: Desc)])
+  @@index([loginMethod, timestamp(sort: Desc)])
+  @@index([userId, timestamp(sort: Desc)])
+  @@map("login_events")
+}
+
+// ======================
+// User Session Model - Track active sessions
+// ======================
+model UserSession {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  sessionId     String    @unique @map("session_id") @db.VarChar(255)
+
+  // Session details
+  ipAddress     String?   @map("ip_address") @db.VarChar(45)
+  userAgent     String?   @map("user_agent") @db.Text
+
+  // Status
+  isActive      Boolean   @default(true) @map("is_active")
+  lastActivity  DateTime  @default(now()) @map("last_activity")
+
+  // Timestamps
+  createdAt     DateTime  @default(now()) @map("created_at")
+  expiresAt     DateTime  @map("expires_at")
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([isActive])
+  @@index([lastActivity])
+  @@map("user_sessions")
+}
+
+// ======================
+// Data Import Job Model - Legacy data migration
+// ======================
+model DataImportJob {
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String    @db.VarChar(255)
+  description     String?   @db.Text
+
+  // Configuration
+  configuration   Json      @db.JsonB // Import configuration (mappings, transformations, etc.)
+  sourceType      String    @db.VarChar(50) // "csv", "json", "api", "database"
+  targetTable     String    @map("target_table") @db.VarChar(100)
+
+  // Status tracking
+  status          String    @default("pending") @db.VarChar(50) // pending, processing, completed, failed, paused
+  progress        Float     @default(0) // 0-100 percentage
+
+  // Metrics
+  totalRecords    Int       @default(0) @map("total_records")
+  processedRecords Int      @default(0) @map("processed_records")
+  successfulRecords Int     @default(0) @map("successful_records")
+  failedRecords   Int       @default(0) @map("failed_records")
+
+  // Performance metrics
+  throughput      Float?    // Records per second
+  errorRate       Float?    @map("error_rate") // Percentage of failed records
+
+  // Relationships
+  createdBy       String    @map("created_by") @db.Uuid
+  stagingRecords  StagingRecord[]
+
+  // Timestamps
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Optimized indexes
+  @@index([status])
+  @@index([createdBy])
+  @@index([targetTable])
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@map("data_import_jobs")
+}
+
+// ======================
+// Staging Record Model - Temporary storage during import
+// ======================
+model StagingRecord {
+  id                  String    @id @default(uuid()) @db.Uuid
+  importJobId         String    @map("import_job_id") @db.Uuid
+  importJob           DataImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+
+  // Record data
+  rowNumber           Int       @map("row_number")
+  rawData             Json      @map("raw_data") @db.JsonB
+  transformedData     Json?     @map("transformed_data") @db.JsonB
+
+  // Validation
+  validationStatus    String    @default("pending") @map("validation_status") @db.VarChar(50) // pending, valid, invalid
+  validationErrors    Json?     @map("validation_errors") @db.JsonB
+
+  // Processing
+  processingStatus    String    @default("pending") @map("processing_status") @db.VarChar(50) // pending, processing, processed, failed
+  processingAttempts  Int       @default(0) @map("processing_attempts")
+  lastError           String?   @map("last_error") @db.Text
+
+  // Timestamps
+  createdAt           DateTime  @default(now()) @map("created_at")
+  processedAt         DateTime? @map("processed_at")
+
+  // Optimized indexes for batch processing
+  @@index([importJobId])
+  @@index([processingStatus])
+  @@index([validationStatus])
+  @@index([importJobId, processingStatus])
+  @@index([importJobId, rowNumber])
+  @@map("staging_records")
+}
+
+// ======================
+// Data Migration Log - Audit trail
+// ======================
+model DataMigrationLog {
+  id          String    @id @default(uuid()) @db.Uuid
+  jobId       String    @map("job_id") @db.Uuid
+
+  // Event details
+  eventType   String    @map("event_type") @db.VarChar(50) // "started", "batch_processed", "error", "completed"
+  message     String    @db.Text
+  metadata    Json?     @db.JsonB // Additional event data
+
+  // Severity
+  level       String    @default("info") @db.VarChar(20) // "info", "warning", "error", "critical"
+
+  // Timestamp
+  timestamp   DateTime  @default(now())
+
+  // Optimized indexes for log queries
+  @@index([jobId])
+  @@index([eventType])
+  @@index([level])
+  @@index([timestamp(sort: Desc)])
+  @@index([jobId, timestamp(sort: Desc)])
+  @@map("data_migration_logs")
+}

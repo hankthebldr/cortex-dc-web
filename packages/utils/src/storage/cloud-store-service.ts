@@ -7,7 +7,8 @@
 
 'use client';
 
-import { ref, uploadBytes, getDownloadURL, FirebaseStorage } from 'firebase/storage';
+import type { StorageAdapter, StorageFile } from '@cortex/db';
+import { getStorage } from '@cortex/db';
 
 export interface CloudStoredMarkdown {
   id: string;
@@ -22,7 +23,7 @@ export interface CloudStoredMarkdown {
 
 class CloudStoreService {
   private readonly STORAGE_KEY = 'contentHub_markdownNotes';
-  private storage: FirebaseStorage | null = null;
+  private storage: StorageAdapter | null = null;
 
   private get hasWindow(): boolean {
     return typeof window !== 'undefined';
@@ -35,12 +36,10 @@ class CloudStoreService {
     if (this.storage) return;
 
     try {
-      const { db, storage } = await import('@cortex/db');
-      if (storage) {
-        this.storage = storage;
-      }
+      this.storage = getStorage();
+      await this.storage.initialize();
     } catch (error) {
-      console.warn('Firebase storage not available:', error);
+      console.warn('Storage not available:', error);
     }
   }
 
@@ -95,11 +94,10 @@ class CloudStoreService {
 
     try {
       if (!this.storage) {
-        throw new Error('Firebase storage service is unavailable');
+        throw new Error('Storage service is unavailable');
       }
 
-      const storageRef = ref(this.storage, path);
-      const uploadResult = await uploadBytes(storageRef, file, {
+      const uploadResult = await this.storage.upload(path, file, {
         contentType: 'text/markdown',
         customMetadata: {
           ...options.metadata,
@@ -108,8 +106,8 @@ class CloudStoreService {
         },
       });
 
-      path = uploadResult.ref.fullPath;
-      downloadUrl = await getDownloadURL(uploadResult.ref);
+      path = uploadResult.fullPath;
+      downloadUrl = await this.storage.getDownloadURL(uploadResult.fullPath);
     } catch (error) {
       console.warn('Markdown upload to cloud storage failed; using local fallback.', error);
       path = `local://${id}`;

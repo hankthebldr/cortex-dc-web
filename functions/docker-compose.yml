@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  functions:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: functions-microservice:local
+    container_name: functions-microservice
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.docker
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - HOST=0.0.0.0
+    volumes:
+      # Mount service account key if needed for local testing
+      # - ./service-account-key.json:/var/secrets/google/key.json:ro
+      # Mount source code for development (requires dev Dockerfile)
+      # - ./src:/app/src:ro
+      # - ./lib:/app/lib
+      - functions-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - functions-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: functions-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - functions-network
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+  # Optional: Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: functions-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - functions-network
+    profiles:
+      - monitoring
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  functions-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  functions-network:
+    driver: bridge

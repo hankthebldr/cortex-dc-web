@@ -3,6 +3,7 @@
 import { Suspense } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PersonalDashboard } from '@/components/dashboard/PersonalDashboard';
 import { TeamDashboard } from '@/components/dashboard/TeamDashboard';
 import { AdminDashboard } from '@/components/dashboard/AdminDashboard';
@@ -30,11 +31,9 @@ function DashboardContent() {
   // Show loading skeleton while fetching user
   if (isLoading || !user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          <DashboardSkeleton />
-        </div>
-      </div>
+      <DashboardLayout>
+        <DashboardSkeleton />
+      </DashboardLayout>
     );
   }
 
@@ -42,13 +41,11 @@ function DashboardContent() {
   const DashboardComponent = getDashboardComponent(user.role as UserRole);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-        <Suspense fallback={<DashboardSkeleton />}>
-          <DashboardComponent user={user as any} />
-        </Suspense>
-      </div>
-    </div>
+    <DashboardLayout>
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardComponent user={user as any} />
+      </Suspense>
+    </DashboardLayout>
   );
 }
 

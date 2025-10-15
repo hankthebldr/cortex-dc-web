@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { UserProfile } from '@cortex/db';
-import { Target, CheckCircle2, Clock, TrendingUp, Plus } from 'lucide-react';
+import { Target, CheckCircle2, Clock, TrendingUp, Plus, Loader2, AlertCircle } from 'lucide-react';
+import { useDashboardMetrics, usePOVs, useTRRs, useRecentActivity } from '@/lib/hooks/use-api';
 
 interface PersonalDashboardProps {
   user: UserProfile;
@@ -28,13 +30,27 @@ const COLORS = {
 };
 
 export const PersonalDashboard: React.FC<PersonalDashboardProps> = ({ user }) => {
-  const [metrics, setMetrics] = useState<DashboardMetrics>({
-    activePOVs: 3,
-    pendingTRRs: 2,
-    completedProjects: 12,
-    successRate: 85
-  });
-  const [isLoading, setIsLoading] = useState(false);
+  // Fetch dashboard metrics
+  const { metrics, isLoading: isLoadingMetrics, isError: metricsError } = useDashboardMetrics(user.uid);
+
+  // Fetch POVs
+  const { data: povs, isLoading: isLoadingPOVs } = usePOVs(user.uid);
+
+  // Fetch TRRs
+  const { data: trrs, isLoading: isLoadingTRRs } = useTRRs(user.uid);
+
+  // Fetch recent activity
+  const { activities, isLoading: isLoadingActivity } = useRecentActivity(user.uid, 5);
+
+  // Calculate metrics from data if API doesn't provide them
+  const displayMetrics: DashboardMetrics = metrics || {
+    activePOVs: povs.filter((p: any) => p.status === 'active').length,
+    pendingTRRs: trrs.filter((t: any) => t.status === 'pending').length,
+    completedProjects: povs.filter((p: any) => p.status === 'completed').length,
+    successRate: 85, // Would need calculation logic
+  };
+
+  const isLoading = isLoadingMetrics || isLoadingPOVs || isLoadingTRRs;
 
   return (
     <div className="space-y-6">
@@ -54,6 +70,17 @@ export const PersonalDashboard: React.FC<PersonalDashboardProps> = ({ user }) =>
       </div>
 
       {/* Metrics Cards */}
+      {metricsError && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="w-4 h-4" />
+              <p className="text-sm">Failed to load metrics. Using fallback data.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -61,10 +88,16 @@ export const PersonalDashboard: React.FC<PersonalDashboardProps> = ({ user }) =>
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.activePOVs}</div>
-            <p className="text-xs text-muted-foreground">
-              +2 from last month
-            </p>
+            {isLoading ? (
+              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{displayMetrics.activePOVs}</div>
+                <p className="text-xs text-muted-foreground">
+                  {povs.length} total projects
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -74,10 +107,16 @@ export const PersonalDashboard: React.FC<PersonalDashboardProps> = ({ user }) =>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.pendingTRRs}</div>
-            <p className="text-xs text-muted-foreground">
-              Needs attention
-            </p>
+            {isLoading ? (
+              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{displayMetrics.pendingTRRs}</div>
+                <p className="text-xs text-muted-foreground">
+                  Needs attention
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -87,10 +126,16 @@ export const PersonalDashboard: React.FC<PersonalDashboardProps> = ({ user }) =>
             <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.completedProjects}</div>
-            <p className="text-xs text-muted-foreground">
-              +3 this quarter
-            </p>
+            {isLoading ? (
+              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{displayMetrics.completedProjects}</div>
+                <p className="text-xs text-muted-foreground">
+                  This quarter
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -100,10 +145,16 @@ export const PersonalDashboard: React.FC<PersonalDashboardProps> = ({ user }) =>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.successRate}%</div>
-            <p className="text-xs text-muted-foreground">
-              +12% from last quarter
-            </p>
+            {isLoading ? (
+              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{displayMetrics.successRate}%</div>
+                <p className="text-xs text-muted-foreground">
+                  Overall performance
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -115,48 +166,82 @@ export const PersonalDashboard: React.FC<PersonalDashboardProps> = ({ user }) =>
             <CardTitle>Recent Projects</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">ACME Corp Security Assessment</p>
-                  <p className="text-xs text-gray-500">Started 3 days ago</p>
-                </div>
-                <Badge variant="default">Active</Badge>
+            {isLoadingPOVs ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
               </div>
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">GlobalTech Implementation</p>
-                  <p className="text-xs text-gray-500">Completed 1 week ago</p>
-                </div>
-                <Badge variant="secondary">Complete</Badge>
+            ) : povs.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-sm">No projects yet</p>
+                <Link href="/pov/new">
+                  <Button variant="outline" size="sm" className="mt-4">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create First Project
+                  </Button>
+                </Link>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-4">
+                {povs.slice(0, 5).map((pov: any) => (
+                  <Link key={pov.id} href={`/pov/${pov.id}`}>
+                    <div className="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer">
+                      <div className={`w-2 h-2 rounded-full ${
+                        pov.status === 'active' ? 'bg-blue-500' :
+                        pov.status === 'completed' ? 'bg-green-500' :
+                        'bg-gray-400'
+                      }`}></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{pov.title || pov.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(pov.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Badge variant={pov.status === 'active' ? 'default' : 'secondary'}>
+                        {pov.status}
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Upcoming Milestones</CardTitle>
+            <CardTitle>Pending TRRs</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-4">
-                <Clock className="w-4 h-4 text-orange-500" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">POV Review Meeting</p>
-                  <p className="text-xs text-gray-500">Tomorrow at 2:00 PM</p>
-                </div>
+            {isLoadingTRRs ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
               </div>
-              <div className="flex items-center space-x-4">
-                <Clock className="w-4 h-4 text-blue-500" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">TRR Submission Due</p>
-                  <p className="text-xs text-gray-500">Friday, Oct 13</p>
-                </div>
+            ) : trrs.filter((t: any) => t.status === 'pending').length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500" />
+                <p className="text-sm">All caught up!</p>
+                <p className="text-xs mt-1">No pending TRRs</p>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-4">
+                {trrs
+                  .filter((t: any) => t.status === 'pending')
+                  .slice(0, 5)
+                  .map((trr: any) => (
+                    <Link key={trr.id} href={`/trr/${trr.id}`}>
+                      <div className="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer">
+                        <Clock className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{trr.title || trr.name}</p>
+                          <p className="text-xs text-gray-500">
+                            Due: {trr.dueDate ? new Date(trr.dueDate).toLocaleDateString() : 'No due date'}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

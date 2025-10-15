@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cortex-web-pdb
+  namespace: cortex-dc
+  labels:
+    app: cortex-web
+    component: frontend
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: cortex-web
+      component: frontend

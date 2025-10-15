@@ -9,7 +9,21 @@
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "genkit:start": "genkit start -- tsx --watch src/genkit-sample.ts"
+    "genkit:start": "genkit start -- tsx --watch src/genkit-sample.ts",
+    "server": "node lib/server.js",
+    "server:dev": "tsx --watch src/server.ts",
+    "docker:build": "docker build -t gcr.io/cortex-dc-project/functions-microservice:latest .",
+    "docker:build:tag": "docker build -t gcr.io/cortex-dc-project/functions-microservice:$(git rev-parse --short HEAD) -t gcr.io/cortex-dc-project/functions-microservice:latest .",
+    "docker:push": "docker push gcr.io/cortex-dc-project/functions-microservice:latest",
+    "docker:push:tag": "docker push gcr.io/cortex-dc-project/functions-microservice:$(git rev-parse --short HEAD) && docker push gcr.io/cortex-dc-project/functions-microservice:latest",
+    "docker:run": "docker run -p 8080:8080 --env-file .env.docker gcr.io/cortex-dc-project/functions-microservice:latest",
+    "k8s:apply": "kubectl apply -k k8s/",
+    "k8s:delete": "kubectl delete -k k8s/",
+    "k8s:restart": "kubectl rollout restart deployment/functions-microservice -n cortex-dc",
+    "k8s:status": "kubectl get pods -n cortex-dc -l app=functions",
+    "k8s:logs": "kubectl logs -n cortex-dc -l app=functions --tail=100 -f",
+    "k8s:describe": "kubectl describe deployment/functions-microservice -n cortex-dc",
+    "deploy:k8s": "npm run build && npm run docker:build:tag && npm run docker:push:tag && npm run k8s:restart"
   },
   "engines": {
     "node": "22"

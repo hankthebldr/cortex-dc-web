@@ -16,6 +16,18 @@ export { FirestoreQueries } from './firestore/queries';
 export * from './schemas/user';
 export * from './schemas/chat';
 
+// Storage adapters (Firebase Storage and MinIO/S3)
+export { getStorage, initializeStorage } from './adapters/storage.factory';
+export type { StorageAdapter, StorageFile, UploadOptions } from './adapters/storage.adapter';
+
+// Database adapters (Firebase Firestore and PostgreSQL)
+export { getDatabase } from './adapters/database.factory';
+export type { DatabaseAdapter, QueryOptions } from './adapters/database.adapter';
+
+// Authentication adapters (Firebase Auth and Keycloak)
+export { getAuth } from './adapters/auth.factory';
+export type { AuthAdapter, AuthUser, AuthResult } from './adapters/auth.adapter';
+
 // Types (includes the main POV and TRR schemas)
 // Note: Some types are re-exported from services to avoid ambiguity
 export type { UserProfile, UserRole, ROLE_PERMISSIONS } from './types/auth';

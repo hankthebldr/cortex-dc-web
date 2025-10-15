@@ -1,0 +1,152 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cortex-web
+  namespace: cortex-dc
+  labels:
+    app: cortex-web
+    component: frontend
+    tier: frontend
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: cortex-web
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: cortex-web
+        component: frontend
+        tier: frontend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/api/metrics"
+    spec:
+      serviceAccountName: cortex-web-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+      - name: web
+        image: gcr.io/cortex-dc-project/cortex-web:latest
+        imagePullPolicy: Always
+
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+
+        # API Configuration
+        - name: NEXT_PUBLIC_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: cortex-web-config
+              key: api-url
+
+        # Keycloak Configuration
+        - name: NEXT_PUBLIC_KEYCLOAK_URL
+          valueFrom:
+            configMapKeyRef:
+              name: cortex-web-config
+              key: keycloak-url
+        - name: NEXT_PUBLIC_KEYCLOAK_REALM
+          valueFrom:
+            configMapKeyRef:
+              name: cortex-web-config
+              key: keycloak-realm
+        - name: NEXT_PUBLIC_KEYCLOAK_CLIENT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: cortex-web-config
+              key: keycloak-client-id
+
+        # Feature Flags
+        - name: NEXT_PUBLIC_DEPLOYMENT_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: cortex-web-config
+              key: deployment-mode
+        - name: NEXT_PUBLIC_USE_BACKEND_API
+          valueFrom:
+            configMapKeyRef:
+              name: cortex-web-config
+              key: use-backend-api
+
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+
+        livenessProbe:
+          httpGet:
+            path: /api/healthz
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /api/readyz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 12
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities:
+            drop:
+            - ALL
+
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - cortex-web
+              topologyKey: kubernetes.io/hostname
+
+      terminationGracePeriodSeconds: 30

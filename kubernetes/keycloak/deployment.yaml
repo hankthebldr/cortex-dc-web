@@ -1,0 +1,152 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: cortex-dc
+  labels:
+    app: keycloak
+    component: auth
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8180
+    targetPort: 8180
+    name: http
+  selector:
+    app: keycloak
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: cortex-dc
+  labels:
+    app: keycloak
+    component: auth
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+        component: auth
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsNonRoot: true
+
+      containers:
+      - name: keycloak
+        image: quay.io/keycloak/keycloak:23.0.3
+        imagePullPolicy: IfNotPresent
+
+        args:
+        - start
+        - --optimized
+        - --http-enabled=true
+        - --http-port=8180
+        - --hostname-strict=false
+        - --proxy=edge
+
+        ports:
+        - containerPort: 8180
+          name: http
+          protocol: TCP
+
+        env:
+        # Database
+        - name: KC_DB
+          value: "postgres"
+        - name: KC_DB_URL
+          value: "jdbc:postgresql://cortex-postgres:5432/keycloak"
+        - name: KC_DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: cortex-secrets
+              key: postgres-username
+        - name: KC_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cortex-secrets
+              key: postgres-password
+
+        # Admin credentials
+        - name: KEYCLOAK_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: cortex-secrets
+              key: keycloak-admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cortex-secrets
+              key: keycloak-admin-password
+
+        # Performance tuning
+        - name: JAVA_OPTS_APPEND
+          value: "-Xms512m -Xmx1024m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m"
+
+        # Health
+        - name: KC_HEALTH_ENABLED
+          value: "true"
+        - name: KC_METRICS_ENABLED
+          value: "true"
+
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8180
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 5
+
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8180
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 3
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - keycloak
+              topologyKey: kubernetes.io/hostname
+
+      terminationGracePeriodSeconds: 60

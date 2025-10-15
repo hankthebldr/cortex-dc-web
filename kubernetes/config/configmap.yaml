@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cortex-config
+  namespace: cortex
+data:
+  # Application Configuration
+  NODE_ENV: "production"
+  DEPLOYMENT_MODE: "self-hosted"
+
+  # API Configuration
+  API_PORT: "8080"
+  API_URL: "http://cortex-api.cortex.svc.cluster.local"
+
+  # Keycloak Configuration
+  KEYCLOAK_URL: "http://cortex-keycloak.cortex.svc.cluster.local:8180"
+  KEYCLOAK_REALM: "cortex"
+  KEYCLOAK_CLIENT_ID: "cortex-api"
+
+  # PostgreSQL Configuration
+  POSTGRES_HOST: "cortex-postgres.cortex.svc.cluster.local"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "cortex"
+  POSTGRES_USER: "cortex"
+
+  # MinIO Configuration
+  MINIO_ENDPOINT: "cortex-minio.cortex.svc.cluster.local"
+  MINIO_PORT: "9000"
+  MINIO_USE_SSL: "false"
+
+  # Redis Configuration
+  REDIS_HOST: "cortex-redis.cortex.svc.cluster.local"
+  REDIS_PORT: "6379"
+
+  # NATS Configuration
+  NATS_URL: "nats://cortex-nats.cortex.svc.cluster.local:4222"
+
+  # Feature Flags
+  NEXT_PUBLIC_ENABLE_AI_FEATURES: "true"
+  NEXT_PUBLIC_ENABLE_POV_MANAGEMENT: "true"
+  NEXT_PUBLIC_ENABLE_TRR_WORKFLOWS: "true"
+  NEXT_PUBLIC_USE_BACKEND_API: "true"

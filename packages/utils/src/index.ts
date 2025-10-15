@@ -1,11 +1,15 @@
 // API services (migrated from henryreed.ai)
 export * from './api';
+export { userApiClient } from './api/user-api-client';
+export type { UserProfile, CreateUserRequest, UpdateUserRequest } from './api/user-api-client';
 
 // Utility functions
 export { cn } from './cn';
 export { formatDate, formatRelativeTime } from './date';
 export { generateId, slugify } from './string';
 export { debounce, throttle } from './async';
+export { getBrowserInfo, generateSessionId } from './browser-info';
+export type { BrowserInfo } from './browser-info';
 
 // Validation utilities
 export { validateEmail, validatePassword } from './validation';

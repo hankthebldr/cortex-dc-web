@@ -1,0 +1,73 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cortex-dc
+
+resources:
+# Namespace
+- namespaces/namespace.yaml
+
+# Database
+- database/postgres-deployment.yaml
+
+# Backing Services
+- redis/statefulset.yaml
+- minio/statefulset.yaml
+- keycloak/deployment.yaml
+
+# Application Services
+- web/deployment.yaml
+- web/service.yaml
+- web/hpa.yaml
+- web/configmap.yaml
+- web/serviceaccount.yaml
+- web/ingress.yaml
+- web/pdb.yaml
+
+# Functions (already exist in functions/k8s/)
+# Include via: kubectl apply -k functions/k8s/
+
+# Configuration
+- config/configmap.yaml
+
+# Secrets (create from template)
+# kubectl create secret generic cortex-secrets --from-literal=...
+
+commonLabels:
+  app.kubernetes.io/part-of: cortex-dc
+  app.kubernetes.io/managed-by: kustomize
+
+configMapGenerator:
+- name: cortex-global-config
+  literals:
+  - DEPLOYMENT_MODE=self-hosted
+  - LOG_LEVEL=info
+  - TIMEZONE=UTC
+
+images:
+# Update with your container registry
+- name: gcr.io/cortex-dc-project/cortex-web
+  newTag: latest
+- name: gcr.io/cortex-dc-project/functions-microservice
+  newTag: latest
+
+# Patches for environment-specific configuration
+patchesStrategicMerge:
+- |-
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: cortex-web
+  spec:
+    template:
+      spec:
+        containers:
+        - name: web
+          env:
+          - name: ENVIRONMENT
+            value: production
+
+# Resource quotas and limits
+# Uncomment to enforce namespace-level quotas
+# - resource-quota.yaml
+# - limit-range.yaml

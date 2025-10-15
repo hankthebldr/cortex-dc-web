@@ -1,0 +1,258 @@
+version: '3.8'
+
+services:
+  # ======================
+  # PostgreSQL Database with Optimizations
+  # ======================
+  postgres:
+    image: postgres:16-alpine
+    container_name: cortex-postgres
+    environment:
+      POSTGRES_USER: cortex_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: cortex_dc
+      # Performance tuning
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 1GB
+      POSTGRES_WORK_MEM: 16MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 128MB
+      POSTGRES_MAX_CONNECTIONS: 200
+      # Logging
+      POSTGRES_LOG_STATEMENT: none  # Use 'all' for debugging
+      POSTGRES_LOG_DURATION: off
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=1GB"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+    networks:
+      - cortex-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cortex_user -d cortex_dc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ======================
+  # PgBouncer - Connection Pooler
+  # ======================
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: cortex-pgbouncer
+    environment:
+      DATABASE_URL: "postgres://cortex_user:${POSTGRES_PASSWORD}@postgres:5432/cortex_dc"
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 25
+      RESERVE_POOL_SIZE: 10
+      SERVER_IDLE_TIMEOUT: 600
+      MAX_DB_CONNECTIONS: 100
+    ports:
+      - "6432:5432"
+    depends_on:
+      - postgres
+    networks:
+      - cortex-network
+    restart: unless-stopped
+
+  # ======================
+  # Redis Cache
+  # ======================
+  redis:
+    image: redis:7-alpine
+    container_name: cortex-redis
+    command:
+      - redis-server
+      - --maxmemory 512mb
+      - --maxmemory-policy allkeys-lru
+      - --save 60 1000
+      - --appendonly yes
+      - --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - cortex-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ======================
+  # MinIO Object Storage
+  # ======================
+  minio:
+    image: minio/minio:latest
+    container_name: cortex-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - cortex-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+  # ======================
+  # Keycloak Identity Management
+  # ======================
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: cortex-keycloak
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: cortex_user
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HOSTNAME: localhost
+      KC_HTTP_ENABLED: true
+    command:
+      - start-dev
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - cortex-network
+    restart: unless-stopped
+
+  # ======================
+  # OpenSearch - Full-Text Search Engine
+  # ======================
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: cortex-opensearch
+    environment:
+      - cluster.name=cortex-cluster
+      - node.name=cortex-node
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD}
+      - plugins.security.disabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"  # REST API
+      - "9600:9600"  # Performance Analyzer
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    networks:
+      - cortex-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -k -u admin:${OPENSEARCH_PASSWORD} https://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # ======================
+  # OpenSearch Dashboards (Optional)
+  # ======================
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.0
+    container_name: cortex-opensearch-dashboards
+    environment:
+      - OPENSEARCH_HOSTS=["https://opensearch:9200"]
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD}
+    ports:
+      - "5601:5601"
+    depends_on:
+      - opensearch
+    networks:
+      - cortex-network
+    restart: unless-stopped
+
+  # ======================
+  # Memgraph - Graph Database for User Interactions
+  # ======================
+  memgraph:
+    image: memgraph/memgraph:latest
+    container_name: cortex-memgraph
+    environment:
+      - MEMGRAPH_LOG_LEVEL=WARNING
+      - MEMGRAPH_TELEMETRY_ENABLED=false
+    ports:
+      - "7687:7687"  # Bolt protocol
+      - "7444:7444"  # Monitoring
+    volumes:
+      - memgraph_data:/var/lib/memgraph
+      - memgraph_log:/var/log/memgraph
+    networks:
+      - cortex-network
+    entrypoint: ["/usr/lib/memgraph/memgraph"]
+    command: ["--log-level=WARNING", "--also-log-to-stderr"]
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'RETURN 1;' | mgconsole || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # ======================
+  # Memgraph Lab - Graph Visualization (Optional)
+  # ======================
+  memgraph-lab:
+    image: memgraph/lab:latest
+    container_name: cortex-memgraph-lab
+    environment:
+      - QUICK_CONNECT_MG_HOST=memgraph
+      - QUICK_CONNECT_MG_PORT=7687
+    ports:
+      - "3001:3000"
+    depends_on:
+      - memgraph
+    networks:
+      - cortex-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+  opensearch_data:
+    driver: local
+  memgraph_data:
+    driver: local
+  memgraph_log:
+    driver: local
+
+networks:
+  cortex-network:
+    driver: bridge
