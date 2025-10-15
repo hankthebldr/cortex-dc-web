@@ -5,6 +5,7 @@
   "main": "src/index.ts",
   "private": true,
   "dependencies": {
+    "@cortex/db": "workspace:*",
     "firebase-admin": "^13.5.0",
     "tsx": "^4.20.6"
   },

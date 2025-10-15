@@ -275,13 +275,85 @@ await db.update('povs', povId, updates);
 await db.delete('povs', povId);
 ```
 
-## Migration Notes
+## Migration Notes - CRITICAL
 
-This codebase was migrated from `henryreed.ai` and retains some Firebase-specific patterns. When working with self-hosted mode:
+This codebase is **actively migrating** from Firebase to a hybrid Firebase/self-hosted architecture. **~88% complete** as of October 2025.
 
-1. Use adapter factories (`getDatabase`, `getStorage`, `getAuth`) rather than direct Firebase imports
-2. Check `DEPLOYMENT_MODE` environment variable
-3. Adapters handle backend-specific implementation details
+### Adapter Pattern (Required for All New Code)
+
+**Always use adapter factories** - Never import Firebase directly:
+
+```typescript
+// ❌ NEVER DO THIS - Direct Firebase imports
+import { db } from '@cortex/db';
+import { collection, getDocs } from 'firebase/firestore';
+
+// ✅ ALWAYS DO THIS - Use adapters
+import { getDatabase, getAuth, getStorage } from '@cortex/db';
+
+const db = getDatabase();  // Returns Firestore OR PostgreSQL
+const auth = getAuth();    // Returns FirebaseAuth OR Keycloak
+const storage = getStorage(); // Returns FirebaseStorage OR MinIO
+```
+
+### Legacy Code Identification
+
+Files marked with `@deprecated Client-side only` use browser globals (window, localStorage) and should not be imported in server-side code:
+- `packages/db/src/legacy/firebase-config.ts`
+- `packages/db/src/services/rbac-middleware.ts`
+- `packages/db/src/services/user-activity-service.ts`
+- `packages/ai/src/gemini-ai-service.ts`
+- `packages/ai/src/services/firebase-ai-logic-service.ts`
+- `packages/db/src/adapters/keycloak-auth.adapter.ts`
+
+### Migration Status by Component
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Database Layer | 90% | Use `getDatabase()` - some services still need migration |
+| Auth Layer | 90% | Use `getAuth()` - backend middleware needs migration |
+| Storage Layer | 90% | Use `getStorage()` |
+| Testing Tools | 85% | E2E seeder migrated to adapters |
+| Functions | 40% | Still uses Firebase Admin SDK - needs migration |
+| Frontend | 30% | Still uses Firebase SDK - needs API client migration |
+
+### Environment Variables
+
+Set `DEPLOYMENT_MODE` to control which adapters are used:
+- `DEPLOYMENT_MODE=firebase` (default) - Uses Firebase Firestore, Firebase Auth, Firebase Storage
+- `DEPLOYMENT_MODE=self-hosted` - Uses PostgreSQL, Keycloak, MinIO
+
+### Database Adapter Return Types
+
+**Important**: `db.create<T>()` returns the full created object (with id), NOT just the id string:
+
+```typescript
+// ❌ Wrong - create() returns object, not string
+const userId = await db.create<UserProfile>('users', userData);
+
+// ✅ Correct - extract id from returned object
+const createdUser = await db.create<UserProfile>('users', userData);
+const userId = createdUser.id;
+```
+
+### Testing with Adapters
+
+E2E test seeding now uses adapters:
+
+```bash
+# New adapter-based seeding (works with both modes)
+pnpm seed:e2e
+
+# Legacy Firebase Admin SDK seeding (deprecated)
+pnpm seed:e2e:legacy
+```
+
+### Migration Documentation
+
+For detailed migration guidance, see:
+- `FIREBASE_CLEANUP_AUDIT.md` - Complete migration tracker
+- `TESTING_FIREBASE_MIGRATION.md` - Testing tools migration guide
+- `SESSION_SUMMARY_2025-10-14_FINAL.md` - Recent migration progress
 
 ## Firebase Extensions
 

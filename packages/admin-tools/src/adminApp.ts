@@ -8,19 +8,32 @@ let app: admin.app.App | null = null;
  */
 export function getAdminApp() {
   if (app) return app;
-  
+
   const projectId = process.env.FIREBASE_PROJECT_ID || 'cortex-dc-web-dev';
-  
+  const useEmulator = process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST;
+
   // Initialize with minimal config for emulators
   // Firebase Admin SDK will automatically detect emulator environments
   app = admin.initializeApp({
     projectId,
-    // For emulators, credentials are not required
+    // For emulators, use a fake credential
     // For production, use Application Default Credentials or service account
-    credential: process.env.GOOGLE_APPLICATION_CREDENTIALS
-      ? admin.credential.applicationDefault()
+    credential: useEmulator
+      ? admin.credential.cert({
+          projectId,
+          clientEmail: 'test@example.com',
+          privateKey: '-----BEGIN PRIVATE KEY-----\nMIIBVAIBADANBgkqhkiG9w0BAQEFAASCAT4wggE6AgEAAkEAr0EaCrBRR8rJBPDz\n-----END PRIVATE KEY-----',
+        } as any)
       : admin.credential.applicationDefault(),
   });
+
+  // Connect to emulators if environment variables are set
+  if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+    console.log(`🔧 Using Auth Emulator: ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`);
+  }
+  if (process.env.FIRESTORE_EMULATOR_HOST) {
+    console.log(`🔧 Using Firestore Emulator: ${process.env.FIRESTORE_EMULATOR_HOST}`);
+  }
 
   return app;
 }
