@@ -1,0 +1,156 @@
+# CODEOWNERS - Code review assignments
+#
+# Lines starting with '#' are comments.
+# Each line is a file pattern followed by one or more owners.
+# Owners will be requested for review when a PR touches their files.
+#
+# Ref: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# ==============================================
+# DEFAULT OWNERSHIP
+# ==============================================
+# Default owners for everything in the repo
+* @your-org/cortex-dc-maintainers
+
+# ==============================================
+# DOCUMENTATION
+# ==============================================
+/docs/ @your-org/cortex-dc-docs
+/*.md @your-org/cortex-dc-docs
+/CONTRIBUTING.md @your-org/cortex-dc-maintainers
+/SECURITY.md @your-org/cortex-dc-security
+/CODE_OF_CONDUCT.md @your-org/cortex-dc-maintainers
+
+# ==============================================
+# INFRASTRUCTURE & DEPLOYMENT
+# ==============================================
+/kubernetes/ @your-org/cortex-dc-platform @your-org/cortex-dc-devops
+/terraform/ @your-org/cortex-dc-platform @your-org/cortex-dc-devops
+/docker-compose*.yml @your-org/cortex-dc-platform
+/Dockerfile* @your-org/cortex-dc-platform
+/.github/workflows/ @your-org/cortex-dc-platform @your-org/cortex-dc-devops
+/scripts/ @your-org/cortex-dc-platform
+
+# ==============================================
+# CONFIGURATION
+# ==============================================
+/firebase.json @your-org/cortex-dc-backend
+/firestore.rules @your-org/cortex-dc-backend @your-org/cortex-dc-security
+/storage.rules @your-org/cortex-dc-backend @your-org/cortex-dc-security
+/tsconfig*.json @your-org/cortex-dc-maintainers
+/pnpm-workspace.yaml @your-org/cortex-dc-maintainers
+/turbo.json @your-org/cortex-dc-maintainers
+/.eslint* @your-org/cortex-dc-maintainers
+/.prettier* @your-org/cortex-dc-maintainers
+
+# ==============================================
+# SECURITY & COMPLIANCE
+# ==============================================
+/SECURITY.md @your-org/cortex-dc-security
+/zap-config.yaml @your-org/cortex-dc-security
+/.github/workflows/*security* @your-org/cortex-dc-security
+
+# ==============================================
+# FRONTEND APPLICATION
+# ==============================================
+/apps/web/ @your-org/cortex-dc-frontend
+
+# Next.js config and routing
+/apps/web/next.config.js @your-org/cortex-dc-frontend @your-org/cortex-dc-platform
+/apps/web/app/ @your-org/cortex-dc-frontend
+/apps/web/app/(auth)/ @your-org/cortex-dc-frontend @your-org/cortex-dc-security
+/apps/web/app/api/ @your-org/cortex-dc-backend @your-org/cortex-dc-frontend
+
+# Styles and UI
+/apps/web/app/globals.css @your-org/cortex-dc-frontend
+/apps/web/tailwind.config.js @your-org/cortex-dc-frontend
+
+# ==============================================
+# SHARED PACKAGES
+# ==============================================
+/packages/ @your-org/cortex-dc-maintainers
+
+# UI Components
+/packages/ui/ @your-org/cortex-dc-frontend
+/packages/ui/src/components/primitives/ @your-org/cortex-dc-frontend
+
+# Database Layer
+/packages/db/ @your-org/cortex-dc-backend
+/packages/db/src/adapters/ @your-org/cortex-dc-backend @your-org/cortex-dc-platform
+/packages/db/src/services/ @your-org/cortex-dc-backend
+/packages/db/src/types/ @your-org/cortex-dc-backend
+
+# AI Services
+/packages/ai/ @your-org/cortex-dc-ai @your-org/cortex-dc-backend
+
+# Commands
+/packages/commands/ @your-org/cortex-dc-backend
+
+# Content Management
+/packages/content/ @your-org/cortex-dc-content @your-org/cortex-dc-backend
+
+# Integrations
+/packages/integrations/ @your-org/cortex-dc-integrations @your-org/cortex-dc-backend
+
+# Terminal
+/packages/terminal/ @your-org/cortex-dc-terminal @your-org/cortex-dc-frontend
+
+# Utilities
+/packages/utils/ @your-org/cortex-dc-maintainers
+
+# Admin Tools
+/packages/admin-tools/ @your-org/cortex-dc-platform
+
+# Test Utilities
+/packages/test-utils/ @your-org/cortex-dc-qa
+
+# ==============================================
+# FIREBASE FUNCTIONS
+# ==============================================
+/functions/ @your-org/cortex-dc-backend @your-org/cortex-dc-platform
+/functions/src/genkit/ @your-org/cortex-dc-ai @your-org/cortex-dc-backend
+
+# ==============================================
+# FIREBASE DATA CONNECT
+# ==============================================
+/dataconnect/ @your-org/cortex-dc-backend
+
+# ==============================================
+# DATABASE SCHEMAS
+# ==============================================
+/prisma/ @your-org/cortex-dc-backend @your-org/cortex-dc-platform
+
+# ==============================================
+# TESTING
+# ==============================================
+/tests/ @your-org/cortex-dc-qa
+/test-scripts/ @your-org/cortex-dc-qa
+*.spec.ts @your-org/cortex-dc-qa
+*.test.ts @your-org/cortex-dc-qa
+/playwright.config.ts @your-org/cortex-dc-qa
+/vitest.config.ts @your-org/cortex-dc-qa
+
+# E2E Tests
+/tests/e2e/ @your-org/cortex-dc-qa @your-org/cortex-dc-frontend
+
+# ==============================================
+# MONITORING & OBSERVABILITY
+# ==============================================
+/monitoring/ @your-org/cortex-dc-platform @your-org/cortex-dc-devops
+/monitoring/alerts.yaml @your-org/cortex-dc-devops
+/monitoring/*dashboard* @your-org/cortex-dc-devops
+
+# ==============================================
+# DEPENDENCIES
+# ==============================================
+# Require platform team approval for major dependency changes
+/package.json @your-org/cortex-dc-platform @your-org/cortex-dc-maintainers
+/pnpm-lock.yaml @your-org/cortex-dc-platform
+/apps/web/package.json @your-org/cortex-dc-frontend @your-org/cortex-dc-platform
+/packages/*/package.json @your-org/cortex-dc-platform
+
+# ==============================================
+# NOTES
+# ==============================================
+# To add yourself to a team, contact @your-org/cortex-dc-maintainers
+# Teams can be managed at: https://github.com/orgs/your-org/teams

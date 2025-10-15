@@ -289,6 +289,13 @@ docs: ## Generate documentation
 
 ##@ Quick Start Commands
 
+demo: ## 🚀 Bootstrap local environment and start demo (one-command setup)
+	@echo "$(CYAN)Starting Cortex DC Local Demo Bootstrap...$(NC)"
+	@./scripts/bootstrap-local.sh
+	@echo ""
+	@echo "$(GREEN)✅ Bootstrap complete!$(NC)"
+	@echo "$(YELLOW)Next: Run 'pnpm dev' to start the web server$(NC)"
+
 quick-start-firebase: setup-firebase emulators dev ## Quick start with Firebase (opens emulators and web)
 
 quick-start-self-hosted: setup-self-hosted docker-up dev ## Quick start self-hosted (starts infra and web)
