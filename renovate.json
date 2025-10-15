@@ -1,0 +1,108 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Automated dependency updates for Cortex DC Web Platform",
+  "extends": [
+    "config:base",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":enablePreCommit",
+    ":timezone(America/New_York)"
+  ],
+  "schedule": [
+    "after 10pm every weekday",
+    "before 5am every weekday",
+    "every weekend"
+  ],
+  "labels": ["dependencies", "renovate"],
+  "assignees": ["@your-org/cortex-dc-maintainers"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "packageRules": [
+    {
+      "description": "Group all non-major dependencies",
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-minor-patch",
+      "automerge": false
+    },
+    {
+      "description": "Auto-merge patch updates to production dependencies",
+      "matchDepTypes": ["dependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+    {
+      "description": "Group Next.js and React updates",
+      "groupName": "Next.js and React",
+      "matchPackagePatterns": ["^next$", "^react", "^@types/react"],
+      "schedule": ["every weekend"]
+    },
+    {
+      "description": "Group Firebase dependencies",
+      "groupName": "Firebase",
+      "matchPackagePatterns": ["^firebase"],
+      "schedule": ["every weekend"]
+    },
+    {
+      "description": "Group testing dependencies",
+      "groupName": "Testing tools",
+      "matchPackagePatterns": ["vitest", "playwright", "@playwright"],
+      "matchDepTypes": ["devDependencies"]
+    },
+    {
+      "description": "Group linting and formatting tools",
+      "groupName": "Linters and formatters",
+      "matchPackagePatterns": ["eslint", "prettier", "@typescript-eslint"],
+      "matchDepTypes": ["devDependencies"]
+    },
+    {
+      "description": "Separate major updates",
+      "matchUpdateTypes": ["major"],
+      "labels": ["major-update", "breaking-change"],
+      "automerge": false,
+      "schedule": ["every 2 weeks on sunday"]
+    },
+    {
+      "description": "Docker base images",
+      "matchDatasources": ["docker"],
+      "enabled": true,
+      "commitMessageTopic": "Docker base image {{depName}}",
+      "schedule": ["every weekend"]
+    },
+    {
+      "description": "GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security", "vulnerability"],
+    "assignees": ["@your-org/cortex-dc-security"],
+    "prPriority": 10,
+    "schedule": ["at any time"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 3am on monday"]
+  },
+  "prCreation": "not-pending",
+  "rangeStrategy": "bump",
+  "semanticCommits": "enabled",
+  "commitMessagePrefix": "chore(deps):",
+  "commitMessageAction": "update",
+  "commitMessageExtra": "to {{#if isSingleVersion}}{{toVersion}}{{else}}{{{newValue}}}{{/if}}",
+  "ignorePresets": [":prHourlyLimit2"],
+  "ignoreDeps": [],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/emulator-data/**",
+    "**/dist/**"
+  ],
+  "platformAutomerge": true,
+  "rebaseWhen": "behind-base-branch"
+}
