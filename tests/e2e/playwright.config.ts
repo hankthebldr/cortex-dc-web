@@ -63,14 +63,6 @@ export default defineConfig({
       use: { ...devices['iPhone 12'] },
     },
 
-    // Hosting emulator validation (optional)
-    {
-      name: 'hosting-emulator',
-      use: { 
-        ...devices['Desktop Chrome'],
-        baseURL: 'http://localhost:5000' // Firebase Hosting emulator
-      },
-    },
   ],
 
   // Development server (when not using global setup)

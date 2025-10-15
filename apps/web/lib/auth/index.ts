@@ -1,18 +1,12 @@
 /**
  * Auth Module - Entry Point
- * Provides authentication via adapter pattern
- *
- * Supports both Firebase Auth and self-hosted JWT authentication
- * Mode is determined by NEXT_PUBLIC_DEPLOYMENT_MODE environment variable
+ * Provides authentication via self-hosted JWT authentication (Keycloak)
  *
  * USAGE:
  * import { signInWithEmail, signOut, getCurrentUser } from '@/lib/auth';
- *
- * All functions work identically regardless of auth mode!
  */
 
-import { AuthAdapter, User, getAuthMode } from './auth.adapter';
-import { FirebaseAuthAdapter } from './firebase-auth.adapter';
+import { AuthAdapter, User } from './auth.adapter';
 import { SelfHostedAuthAdapter } from './self-hosted-auth.adapter';
 
 /**
@@ -23,28 +17,21 @@ let authAdapter: AuthAdapter | null = null;
 
 /**
  * Get Auth Adapter
- * Returns the appropriate adapter based on deployment mode
+ * Returns the self-hosted auth adapter
  */
 function getAuthAdapter(): AuthAdapter {
   if (authAdapter) {
     return authAdapter;
   }
 
-  const mode = getAuthMode();
-
-  console.log(`[Auth] Initializing ${mode} auth adapter`);
-
-  if (mode === 'firebase') {
-    authAdapter = new FirebaseAuthAdapter();
-  } else {
-    authAdapter = new SelfHostedAuthAdapter();
-  }
+  console.log('[Auth] Initializing self-hosted auth adapter');
+  authAdapter = new SelfHostedAuthAdapter();
 
   return authAdapter;
 }
 
 // =============================================================================
-// PUBLIC API - Works with both Firebase and Self-Hosted modes
+// PUBLIC API
 // =============================================================================
 
 const adapter = getAuthAdapter();
@@ -172,45 +159,18 @@ export function isAuthenticated(): boolean {
   return adapter.isAuthenticated();
 }
 
+/**
+ * Refresh auth state
+ */
+export async function refreshAuthState(): Promise<void> {
+  const selfHostedAdapter = adapter as SelfHostedAuthAdapter;
+  if (selfHostedAdapter.refreshAuthState) {
+    await selfHostedAdapter.refreshAuthState();
+  }
+}
+
 // =============================================================================
 // TYPE EXPORTS
 // =============================================================================
 
 export type { User } from './auth.adapter';
-
-// =============================================================================
-// FIREBASE-SPECIFIC EXPORTS (for backward compatibility)
-// =============================================================================
-
-/**
- * Get Firebase user (only available in Firebase mode)
- * @deprecated Use getCurrentUser() for cross-compatible code
- */
-export function getFirebaseUser() {
-  const mode = getAuthMode();
-  if (mode !== 'firebase') {
-    console.warn('[Auth] getFirebaseUser() called in non-Firebase mode');
-    return null;
-  }
-
-  const firebaseAdapter = adapter as FirebaseAuthAdapter;
-  return firebaseAdapter.getFirebaseUser ? firebaseAdapter.getFirebaseUser() : null;
-}
-
-// =============================================================================
-// SELF-HOSTED-SPECIFIC EXPORTS
-// =============================================================================
-
-/**
- * Refresh auth state (only needed in self-hosted mode)
- * In Firebase mode, this is handled automatically
- */
-export async function refreshAuthState(): Promise<void> {
-  const mode = getAuthMode();
-  if (mode === 'self-hosted') {
-    const selfHostedAdapter = adapter as SelfHostedAuthAdapter;
-    if (selfHostedAdapter.refreshAuthState) {
-      await selfHostedAdapter.refreshAuthState();
-    }
-  }
-}

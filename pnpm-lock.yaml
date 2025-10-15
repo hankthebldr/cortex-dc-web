@@ -203,6 +203,9 @@ importers:
 
   packages/admin-tools:
     dependencies:
+      '@cortex/db':
+        specifier: workspace:*
+        version: link:../db
       firebase-admin:
         specifier: ^13.5.0
         version: 13.5.0
