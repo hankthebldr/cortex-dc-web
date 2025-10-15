@@ -286,7 +286,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               <span className="text-sm text-gray-600">Team</span>
             </div>
             <div className="flex -space-x-2">
-              {project.team.slice(0, 3).map((memberId, index) => (
+              {project.team.slice(0, 3).map((memberId: string, index: number) => (
                 <Avatar key={memberId} className="w-6 h-6 border-2 border-white">
                   <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${memberId}`} />
                   <AvatarFallback className="text-xs">

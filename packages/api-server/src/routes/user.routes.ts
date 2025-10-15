@@ -273,4 +273,4 @@ router.put('/bulk/update', async (req: AuthRequest, res) => {
   }
 });
 
-export const userRoutes = router;
+export const userRoutes: import("express").Router = router;

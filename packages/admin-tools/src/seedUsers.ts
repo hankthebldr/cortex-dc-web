@@ -1,6 +1,6 @@
 import { getAdminAuth } from './adminApp.js';
 
-type Role = 'user' | 'manager' | 'admin';
+type Role = 'user' | 'manager' | 'admin' | 'viewer';
 
 const defaultUsers: Array<{
   email: string;
@@ -8,6 +8,32 @@ const defaultUsers: Array<{
   displayName: string;
   role: Role;
 }> = [
+  // E2E Test Users (used by Playwright tests)
+  {
+    email: 'admin@cortex.com',
+    password: 'admin123',
+    displayName: 'Admin User',
+    role: 'admin'
+  },
+  {
+    email: 'user@cortex.com',
+    password: 'user123',
+    displayName: 'Test User',
+    role: 'user'
+  },
+  {
+    email: 'viewer@cortex.com',
+    password: 'viewer123',
+    displayName: 'Viewer User',
+    role: 'viewer'
+  },
+  {
+    email: 'test@example.com',
+    password: 'test123',
+    displayName: 'Test Account',
+    role: 'user'
+  },
+  // Development Users
   {
     email: 'user1@dev.local',
     password: 'Password123!',

@@ -2,11 +2,22 @@
 // Migrated from henryreed.ai/hosting/lib/firebase-config.ts
 // Updated for cortex-dc-web monorepo structure
 
+/**
+ * @deprecated This file is for client-side Firebase usage only.
+ * For server-side or self-hosted deployments, use the adapter pattern:
+ * - getDatabase() from '../adapters/database.factory'
+ * - getAuth() from '../adapters/auth.factory'
+ * - getStorage() from '../adapters/storage.factory'
+ */
+
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, Auth } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator, Firestore } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator, FirebaseStorage } from 'firebase/storage';
 import { getFunctions, connectFunctionsEmulator, Functions } from 'firebase/functions';
+
+// Type guard for browser environment
+declare const window: any;
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,

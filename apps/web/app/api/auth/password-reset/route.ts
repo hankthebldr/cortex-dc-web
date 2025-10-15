@@ -41,22 +41,22 @@ export async function POST(request: NextRequest) {
 
 /**
  * PUT /api/auth/password-reset
- * Reset password with token
+ * Reset password with verification code
  */
 export async function PUT(request: NextRequest) {
   try {
-    const { token, newPassword } = await request.json();
+    const { code, newPassword } = await request.json();
 
-    if (!token || !newPassword) {
+    if (!code || !newPassword) {
       return NextResponse.json(
-        { error: 'Token and new password are required' },
+        { error: 'Verification code and new password are required' },
         { status: 400 }
       );
     }
 
     // Use auth adapter to reset password
     const auth = getAuth();
-    await auth.resetPassword(token, newPassword);
+    await auth.confirmPasswordReset(code, newPassword);
 
     return NextResponse.json({
       success: true,

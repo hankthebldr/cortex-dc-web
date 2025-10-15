@@ -56,7 +56,8 @@ export type { AuthAdapter, AuthUser, AuthResult } from './adapters/auth.adapter'
 // Note: Some types are re-exported from services to avoid ambiguity
 export { UserRole, ROLE_PERMISSIONS } from './types/auth';
 export type { UserProfile } from './types/auth';
-export type { TimelineEvent } from './types/projects';
+export type { TimelineEvent, Project, POV, TRR, Task, Note } from './types/projects';
+export { POVStatus, Priority, ProjectStatus, TRRStatus, TaskStatus } from './types/projects';
 export type {
   DatabaseClient,
   QueryResult,

@@ -44,6 +44,7 @@ export interface Group {
 }
 
 export interface GroupMembership {
+  id?: string;
   groupId: string;
   userId: string;
   role: 'member' | 'manager' | 'admin';
@@ -111,7 +112,8 @@ export class GroupManagementService {
         }
       };
 
-      const groupId = await db.create<Group>('groups', groupData);
+      const createdGroup = await db.create<Group>('groups', groupData);
+      const groupId = createdGroup.id;
 
       // Update parent group if specified
       if (request.parentGroupId) {

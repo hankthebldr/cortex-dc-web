@@ -677,11 +677,16 @@ __export(index_exports, {
   GroupManagementService: () => GroupManagementService,
   MemgraphService: () => MemgraphService,
   OpenSearchService: () => OpenSearchService,
+  POVStatus: () => POVStatus,
+  Priority: () => Priority,
+  ProjectStatus: () => ProjectStatus,
   RBACMiddleware: () => RBACMiddleware,
   ROLE_PERMISSIONS: () => ROLE_PERMISSIONS,
   RecordProcessingOrchestrator: () => RecordProcessingOrchestrator,
   RedisCacheService: () => RedisCacheService,
   RelationshipManagementService: () => RelationshipManagementService,
+  TRRStatus: () => TRRStatus,
+  TaskStatus: () => TaskStatus,
   TerraformGenerationService: () => TerraformGenerationService,
   USER_COLLECTION: () => USER_COLLECTION,
   UserManagementService: () => UserManagementService,
@@ -2136,7 +2141,8 @@ var GroupManagementService = class {
           memberCount: (request.initialMembers || []).length
         }
       };
-      const groupId = await db2.create("groups", groupData);
+      const createdGroup = await db2.create("groups", groupData);
+      const groupId = createdGroup.id;
       if (request.parentGroupId) {
         const parentGroup = await db2.findOne("groups", request.parentGroupId);
         if (parentGroup) {
@@ -2561,7 +2567,8 @@ var FederatedDataService = class {
         createdAt: /* @__PURE__ */ new Date(),
         updatedAt: /* @__PURE__ */ new Date()
       };
-      const id = await db2.create(collection, itemData);
+      const createdItem = await db2.create(collection, itemData);
+      const id = createdItem.id;
       await this.accessControl.logAccess({
         userId: context.userId,
         action: "write",
@@ -2800,7 +2807,9 @@ var FederatedDataService = class {
     });
     if (this.queryCache.size > 1e3) {
       const firstKey = this.queryCache.keys().next().value;
-      this.queryCache.delete(firstKey);
+      if (firstKey) {
+        this.queryCache.delete(firstKey);
+      }
     }
   }
   invalidateCache(collection) {
@@ -2876,13 +2885,10 @@ var UserManagementService = class {
         },
         status: "active"
       };
-      const userId = await this.db.create("users", userProfile);
+      const createdUser = await this.db.create("users", userProfile);
       return {
         success: true,
-        profile: {
-          uid: userId,
-          ...userProfile
-        }
+        profile: createdUser
       };
     } catch (error) {
       console.error("Error creating user:", error);
@@ -8815,6 +8821,329 @@ var ChatValidationRules = {
 
 // src/index.ts
 init_auth_factory();
+
+// src/types/projects.ts
+var import_zod3 = require("zod");
+var ProjectStatus = /* @__PURE__ */ ((ProjectStatus2) => {
+  ProjectStatus2["DRAFT"] = "draft";
+  ProjectStatus2["ACTIVE"] = "active";
+  ProjectStatus2["ON_HOLD"] = "on_hold";
+  ProjectStatus2["COMPLETED"] = "completed";
+  ProjectStatus2["CANCELLED"] = "cancelled";
+  return ProjectStatus2;
+})(ProjectStatus || {});
+var Priority = /* @__PURE__ */ ((Priority2) => {
+  Priority2["LOW"] = "low";
+  Priority2["MEDIUM"] = "medium";
+  Priority2["HIGH"] = "high";
+  Priority2["CRITICAL"] = "critical";
+  return Priority2;
+})(Priority || {});
+var POVStatus = /* @__PURE__ */ ((POVStatus2) => {
+  POVStatus2["PLANNING"] = "planning";
+  POVStatus2["IN_PROGRESS"] = "in_progress";
+  POVStatus2["TESTING"] = "testing";
+  POVStatus2["VALIDATING"] = "validating";
+  POVStatus2["COMPLETED"] = "completed";
+  POVStatus2["AT_RISK"] = "at_risk";
+  POVStatus2["CANCELLED"] = "cancelled";
+  return POVStatus2;
+})(POVStatus || {});
+var TRRStatus = /* @__PURE__ */ ((TRRStatus2) => {
+  TRRStatus2["DRAFT"] = "draft";
+  TRRStatus2["IN_REVIEW"] = "in_review";
+  TRRStatus2["PENDING_VALIDATION"] = "pending_validation";
+  TRRStatus2["VALIDATED"] = "validated";
+  TRRStatus2["APPROVED"] = "approved";
+  TRRStatus2["REJECTED"] = "rejected";
+  TRRStatus2["COMPLETED"] = "completed";
+  return TRRStatus2;
+})(TRRStatus || {});
+var TaskStatus = /* @__PURE__ */ ((TaskStatus2) => {
+  TaskStatus2["TODO"] = "todo";
+  TaskStatus2["IN_PROGRESS"] = "in_progress";
+  TaskStatus2["REVIEW"] = "review";
+  TaskStatus2["DONE"] = "done";
+  TaskStatus2["BLOCKED"] = "blocked";
+  return TaskStatus2;
+})(TaskStatus || {});
+var ProjectSchema = import_zod3.z.object({
+  id: import_zod3.z.string(),
+  title: import_zod3.z.string(),
+  description: import_zod3.z.string().optional(),
+  customer: import_zod3.z.object({
+    name: import_zod3.z.string(),
+    industry: import_zod3.z.string().optional(),
+    size: import_zod3.z.enum(["startup", "small", "medium", "enterprise"]).optional(),
+    region: import_zod3.z.string().optional(),
+    contact: import_zod3.z.object({
+      name: import_zod3.z.string(),
+      email: import_zod3.z.string().email(),
+      role: import_zod3.z.string().optional(),
+      phone: import_zod3.z.string().optional()
+    }).optional()
+  }),
+  status: import_zod3.z.nativeEnum(ProjectStatus),
+  priority: import_zod3.z.nativeEnum(Priority),
+  owner: import_zod3.z.string(),
+  // uid of project owner
+  team: import_zod3.z.array(import_zod3.z.string()),
+  // array of user uids
+  startDate: import_zod3.z.date(),
+  endDate: import_zod3.z.date().optional(),
+  estimatedValue: import_zod3.z.number().optional(),
+  actualValue: import_zod3.z.number().optional(),
+  tags: import_zod3.z.array(import_zod3.z.string()).default([]),
+  // Relations to other entities
+  povIds: import_zod3.z.array(import_zod3.z.string()).default([]),
+  trrIds: import_zod3.z.array(import_zod3.z.string()).default([]),
+  scenarioIds: import_zod3.z.array(import_zod3.z.string()).default([]),
+  // Metadata
+  createdAt: import_zod3.z.date(),
+  updatedAt: import_zod3.z.date(),
+  createdBy: import_zod3.z.string(),
+  lastModifiedBy: import_zod3.z.string()
+});
+var POVSchema = import_zod3.z.object({
+  id: import_zod3.z.string(),
+  projectId: import_zod3.z.string(),
+  // reference to parent project
+  title: import_zod3.z.string(),
+  description: import_zod3.z.string(),
+  status: import_zod3.z.nativeEnum(POVStatus),
+  priority: import_zod3.z.nativeEnum(Priority),
+  // POV Specific Fields
+  objectives: import_zod3.z.array(import_zod3.z.object({
+    id: import_zod3.z.string(),
+    description: import_zod3.z.string(),
+    success_criteria: import_zod3.z.string(),
+    status: import_zod3.z.enum(["pending", "in_progress", "completed", "failed"]),
+    weight: import_zod3.z.number().min(0).max(100).default(100)
+    // percentage weight
+  })).default([]),
+  testPlan: import_zod3.z.object({
+    scenarios: import_zod3.z.array(import_zod3.z.string()),
+    // scenario IDs
+    environment: import_zod3.z.string().optional(),
+    timeline: import_zod3.z.object({
+      start: import_zod3.z.date(),
+      end: import_zod3.z.date(),
+      milestones: import_zod3.z.array(import_zod3.z.object({
+        id: import_zod3.z.string(),
+        title: import_zod3.z.string(),
+        date: import_zod3.z.date(),
+        status: import_zod3.z.enum(["upcoming", "in_progress", "completed", "overdue"])
+      }))
+    }),
+    resources: import_zod3.z.array(import_zod3.z.object({
+      type: import_zod3.z.enum(["personnel", "equipment", "software", "budget"]),
+      description: import_zod3.z.string(),
+      quantity: import_zod3.z.number().optional(),
+      cost: import_zod3.z.number().optional()
+    })).default([])
+  }).optional(),
+  // Success Metrics
+  successMetrics: import_zod3.z.object({
+    businessValue: import_zod3.z.object({
+      roi: import_zod3.z.number().optional(),
+      costSavings: import_zod3.z.number().optional(),
+      riskReduction: import_zod3.z.string().optional(),
+      efficiency_gains: import_zod3.z.string().optional()
+    }).optional(),
+    technicalMetrics: import_zod3.z.object({
+      performance: import_zod3.z.record(import_zod3.z.number()).optional(),
+      reliability: import_zod3.z.number().optional(),
+      // percentage
+      security_score: import_zod3.z.number().optional()
+    }).optional()
+  }).default({}),
+  // Timeline tracking
+  phases: import_zod3.z.array(import_zod3.z.object({
+    id: import_zod3.z.string(),
+    name: import_zod3.z.string(),
+    description: import_zod3.z.string().optional(),
+    startDate: import_zod3.z.date(),
+    endDate: import_zod3.z.date().optional(),
+    status: import_zod3.z.nativeEnum(TaskStatus),
+    tasks: import_zod3.z.array(import_zod3.z.string()).default([])
+    // task IDs
+  })).default([]),
+  // Assignment
+  owner: import_zod3.z.string(),
+  // uid of POV owner
+  team: import_zod3.z.array(import_zod3.z.string()).default([]),
+  // Metadata
+  createdAt: import_zod3.z.date(),
+  updatedAt: import_zod3.z.date(),
+  createdBy: import_zod3.z.string(),
+  lastModifiedBy: import_zod3.z.string()
+});
+var TRRSchema = import_zod3.z.object({
+  id: import_zod3.z.string(),
+  projectId: import_zod3.z.string(),
+  // reference to parent project
+  povId: import_zod3.z.string().optional(),
+  // optional reference to related POV
+  title: import_zod3.z.string(),
+  description: import_zod3.z.string(),
+  status: import_zod3.z.nativeEnum(TRRStatus),
+  priority: import_zod3.z.nativeEnum(Priority),
+  // TRR Specific Fields
+  riskAssessment: import_zod3.z.object({
+    overall_score: import_zod3.z.number().min(0).max(10),
+    categories: import_zod3.z.array(import_zod3.z.object({
+      category: import_zod3.z.string(),
+      score: import_zod3.z.number().min(0).max(10),
+      description: import_zod3.z.string(),
+      mitigation: import_zod3.z.string().optional(),
+      evidence: import_zod3.z.array(import_zod3.z.string()).default([])
+      // file URLs or references
+    }))
+  }),
+  findings: import_zod3.z.array(import_zod3.z.object({
+    id: import_zod3.z.string(),
+    title: import_zod3.z.string(),
+    description: import_zod3.z.string(),
+    severity: import_zod3.z.enum(["low", "medium", "high", "critical"]),
+    category: import_zod3.z.string(),
+    evidence: import_zod3.z.array(import_zod3.z.object({
+      type: import_zod3.z.enum(["screenshot", "log", "document", "test_result"]),
+      url: import_zod3.z.string(),
+      description: import_zod3.z.string().optional()
+    })).default([]),
+    recommendation: import_zod3.z.string().optional(),
+    status: import_zod3.z.enum(["open", "addressed", "accepted_risk", "false_positive"])
+  })).default([]),
+  // Validation and Approval
+  validation: import_zod3.z.object({
+    validator: import_zod3.z.string().optional(),
+    // uid of validator
+    validatedAt: import_zod3.z.date().optional(),
+    validationNotes: import_zod3.z.string().optional(),
+    approved: import_zod3.z.boolean().optional()
+  }).optional(),
+  signoff: import_zod3.z.object({
+    approver: import_zod3.z.string().optional(),
+    // uid of approver
+    approvedAt: import_zod3.z.date().optional(),
+    signoffNotes: import_zod3.z.string().optional(),
+    digitalSignature: import_zod3.z.string().optional()
+  }).optional(),
+  // Assignment
+  owner: import_zod3.z.string(),
+  // uid of TRR owner
+  reviewers: import_zod3.z.array(import_zod3.z.string()).default([]),
+  // Metadata
+  createdAt: import_zod3.z.date(),
+  updatedAt: import_zod3.z.date(),
+  createdBy: import_zod3.z.string(),
+  lastModifiedBy: import_zod3.z.string()
+});
+var TaskSchema = import_zod3.z.object({
+  id: import_zod3.z.string(),
+  title: import_zod3.z.string(),
+  description: import_zod3.z.string().optional(),
+  status: import_zod3.z.nativeEnum(TaskStatus),
+  priority: import_zod3.z.nativeEnum(Priority),
+  // Relations
+  projectId: import_zod3.z.string().optional(),
+  povId: import_zod3.z.string().optional(),
+  trrId: import_zod3.z.string().optional(),
+  parentTaskId: import_zod3.z.string().optional(),
+  dependencies: import_zod3.z.array(import_zod3.z.string()).default([]),
+  // task IDs this task depends on
+  // Assignment and timing
+  assignee: import_zod3.z.string().optional(),
+  // uid of assignee
+  estimatedHours: import_zod3.z.number().optional(),
+  actualHours: import_zod3.z.number().optional(),
+  startDate: import_zod3.z.date().optional(),
+  dueDate: import_zod3.z.date().optional(),
+  completedAt: import_zod3.z.date().optional(),
+  // Task details
+  labels: import_zod3.z.array(import_zod3.z.string()).default([]),
+  checklist: import_zod3.z.array(import_zod3.z.object({
+    id: import_zod3.z.string(),
+    text: import_zod3.z.string(),
+    completed: import_zod3.z.boolean().default(false)
+  })).default([]),
+  attachments: import_zod3.z.array(import_zod3.z.object({
+    name: import_zod3.z.string(),
+    url: import_zod3.z.string(),
+    type: import_zod3.z.string(),
+    size: import_zod3.z.number().optional()
+  })).default([]),
+  // Metadata
+  createdAt: import_zod3.z.date(),
+  updatedAt: import_zod3.z.date(),
+  createdBy: import_zod3.z.string(),
+  lastModifiedBy: import_zod3.z.string()
+});
+var NoteSchema = import_zod3.z.object({
+  id: import_zod3.z.string(),
+  title: import_zod3.z.string().optional(),
+  content: import_zod3.z.string(),
+  type: import_zod3.z.enum(["note", "meeting", "decision", "action_item", "issue"]).default("note"),
+  // Relations - at least one must be specified
+  projectId: import_zod3.z.string().optional(),
+  povId: import_zod3.z.string().optional(),
+  trrId: import_zod3.z.string().optional(),
+  taskId: import_zod3.z.string().optional(),
+  // Classification
+  tags: import_zod3.z.array(import_zod3.z.string()).default([]),
+  isPrivate: import_zod3.z.boolean().default(false),
+  isPinned: import_zod3.z.boolean().default(false),
+  // Rich content
+  mentions: import_zod3.z.array(import_zod3.z.string()).default([]),
+  // user IDs mentioned in note
+  attachments: import_zod3.z.array(import_zod3.z.object({
+    name: import_zod3.z.string(),
+    url: import_zod3.z.string(),
+    type: import_zod3.z.string()
+  })).default([]),
+  // Metadata
+  createdAt: import_zod3.z.date(),
+  updatedAt: import_zod3.z.date(),
+  createdBy: import_zod3.z.string(),
+  lastModifiedBy: import_zod3.z.string()
+});
+var TimelineEventSchema = import_zod3.z.object({
+  id: import_zod3.z.string(),
+  type: import_zod3.z.enum([
+    "project_created",
+    "project_updated",
+    "project_completed",
+    "pov_created",
+    "pov_phase_completed",
+    "pov_completed",
+    "trr_created",
+    "trr_submitted",
+    "trr_approved",
+    "task_created",
+    "task_completed",
+    "milestone_reached",
+    "note_added",
+    "team_member_added",
+    "status_changed"
+  ]),
+  title: import_zod3.z.string(),
+  description: import_zod3.z.string().optional(),
+  // Relations
+  projectId: import_zod3.z.string().optional(),
+  povId: import_zod3.z.string().optional(),
+  trrId: import_zod3.z.string().optional(),
+  taskId: import_zod3.z.string().optional(),
+  // Event details
+  actor: import_zod3.z.string(),
+  // uid of user who triggered the event
+  metadata: import_zod3.z.record(import_zod3.z.unknown()).optional(),
+  // additional event data
+  // Timing
+  timestamp: import_zod3.z.date(),
+  createdAt: import_zod3.z.date()
+});
+
+// src/index.ts
 if (typeof process !== "undefined" && process.env?.DEPLOYMENT_MODE === "self-hosted") {
   console.warn(
     "\n\u26A0\uFE0F  WARNING: Running in self-hosted mode with Firebase legacy exports\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\nFirebase exports from @cortex/db are deprecated and should not be used\nin self-hosted deployments.\n\nPlease migrate to adapter pattern:\n  - Use getDatabase() instead of direct Firebase imports\n  - Use getAuth() instead of Firebase Auth\n  - Use getStorage() instead of Firebase Storage\n\nSee packages/db/src/legacy/ for Firebase-specific code.\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
@@ -8838,11 +9167,16 @@ if (typeof process !== "undefined" && process.env?.DEPLOYMENT_MODE === "self-hos
   GroupManagementService,
   MemgraphService,
   OpenSearchService,
+  POVStatus,
+  Priority,
+  ProjectStatus,
   RBACMiddleware,
   ROLE_PERMISSIONS,
   RecordProcessingOrchestrator,
   RedisCacheService,
   RelationshipManagementService,
+  TRRStatus,
+  TaskStatus,
   TerraformGenerationService,
   USER_COLLECTION,
   UserManagementService,

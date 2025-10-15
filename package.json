@@ -22,6 +22,7 @@
     "clean": "turbo run clean",
     "setup": "pnpm install && firebase login && firebase use cortex-dc-portal",
     "seed:users": "RUN_DIRECT=1 tsx packages/admin-tools/src/seedUsers.ts",
+    "seed:e2e": "RUN_DIRECT=1 tsx packages/admin-tools/src/seedE2EUsers.ts",
     "seed:data": "RUN_DIRECT=1 tsx packages/admin-tools/src/seedData.ts",
     "test:e2e": "playwright test -c tests/e2e/playwright.config.ts",
     "test:e2e:ui": "playwright test -c tests/e2e/playwright.config.ts --ui",

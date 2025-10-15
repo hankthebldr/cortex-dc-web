@@ -96,6 +96,16 @@ pnpm test --coverage
 
 ### E2E Tests (Playwright)
 
+**Prerequisites**: Seed test users first (one-time setup):
+```bash
+# Seed E2E test users (admin@cortex.com, user@cortex.com, etc.)
+pnpm seed:e2e
+
+# Or seed all users (E2E + dev users)
+pnpm seed:users
+```
+
+**Run tests**:
 ```bash
 # Run all E2E tests
 pnpm test:e2e
@@ -465,6 +475,10 @@ View CI results:
 ## Quick Command Reference
 
 ```bash
+# Setup
+pnpm seed:e2e               # Seed E2E test users
+pnpm seed:users             # Seed all users
+
 # Unit Tests
 pnpm test                    # Run unit tests
 pnpm test --watch            # Watch mode

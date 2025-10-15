@@ -1,8 +1,8 @@
 import {
   getStorage
-} from "./chunk-H5TZDFUE.mjs";
-import "./chunk-QJGNXYUV.mjs";
-import "./chunk-Y5JAPWED.mjs";
+} from "./chunk-GJULQ6UD.mjs";
+import "./chunk-RCTNOANG.mjs";
+import "./chunk-YKZ27YYU.mjs";
 import "./chunk-IV6ZFDNU.mjs";
 import "./chunk-2RCBK75L.mjs";
 
@@ -325,7 +325,7 @@ var UserApiClient = class {
    */
   async getAuthHeader() {
     try {
-      const { getAuth } = await import("./src-5NXNUXF3.mjs");
+      const { getAuth } = await import("./src-M4TPN34I.mjs");
       const auth = getAuth();
       const token = await auth.getIdToken();
       if (token) {

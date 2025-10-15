@@ -123,11 +123,11 @@ async function apiRequest<T>(
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
+    const errorData = await response.json().catch(() => ({})) as { error?: string };
     throw new Error(errorData.error || `API request failed: ${response.statusText}`);
   }
 
-  return response.json();
+  return response.json() as Promise<T>;
 }
 
 /**

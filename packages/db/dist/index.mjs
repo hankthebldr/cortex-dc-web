@@ -1430,7 +1430,8 @@ var GroupManagementService = class {
           memberCount: (request.initialMembers || []).length
         }
       };
-      const groupId = await db2.create("groups", groupData);
+      const createdGroup = await db2.create("groups", groupData);
+      const groupId = createdGroup.id;
       if (request.parentGroupId) {
         const parentGroup = await db2.findOne("groups", request.parentGroupId);
         if (parentGroup) {
@@ -1855,7 +1856,8 @@ var FederatedDataService = class {
         createdAt: /* @__PURE__ */ new Date(),
         updatedAt: /* @__PURE__ */ new Date()
       };
-      const id = await db2.create(collection, itemData);
+      const createdItem = await db2.create(collection, itemData);
+      const id = createdItem.id;
       await this.accessControl.logAccess({
         userId: context.userId,
         action: "write",
@@ -2094,7 +2096,9 @@ var FederatedDataService = class {
     });
     if (this.queryCache.size > 1e3) {
       const firstKey = this.queryCache.keys().next().value;
-      this.queryCache.delete(firstKey);
+      if (firstKey) {
+        this.queryCache.delete(firstKey);
+      }
     }
   }
   invalidateCache(collection) {
@@ -2170,13 +2174,10 @@ var UserManagementService = class {
         },
         status: "active"
       };
-      const userId = await this.db.create("users", userProfile);
+      const createdUser = await this.db.create("users", userProfile);
       return {
         success: true,
-        profile: {
-          uid: userId,
-          ...userProfile
-        }
+        profile: createdUser
       };
     } catch (error) {
       console.error("Error creating user:", error);
@@ -8116,6 +8117,327 @@ var ChatValidationRules = {
   maxTitleLength: 100
 };
 
+// src/types/projects.ts
+import { z as z3 } from "zod";
+var ProjectStatus = /* @__PURE__ */ ((ProjectStatus2) => {
+  ProjectStatus2["DRAFT"] = "draft";
+  ProjectStatus2["ACTIVE"] = "active";
+  ProjectStatus2["ON_HOLD"] = "on_hold";
+  ProjectStatus2["COMPLETED"] = "completed";
+  ProjectStatus2["CANCELLED"] = "cancelled";
+  return ProjectStatus2;
+})(ProjectStatus || {});
+var Priority = /* @__PURE__ */ ((Priority2) => {
+  Priority2["LOW"] = "low";
+  Priority2["MEDIUM"] = "medium";
+  Priority2["HIGH"] = "high";
+  Priority2["CRITICAL"] = "critical";
+  return Priority2;
+})(Priority || {});
+var POVStatus = /* @__PURE__ */ ((POVStatus2) => {
+  POVStatus2["PLANNING"] = "planning";
+  POVStatus2["IN_PROGRESS"] = "in_progress";
+  POVStatus2["TESTING"] = "testing";
+  POVStatus2["VALIDATING"] = "validating";
+  POVStatus2["COMPLETED"] = "completed";
+  POVStatus2["AT_RISK"] = "at_risk";
+  POVStatus2["CANCELLED"] = "cancelled";
+  return POVStatus2;
+})(POVStatus || {});
+var TRRStatus = /* @__PURE__ */ ((TRRStatus2) => {
+  TRRStatus2["DRAFT"] = "draft";
+  TRRStatus2["IN_REVIEW"] = "in_review";
+  TRRStatus2["PENDING_VALIDATION"] = "pending_validation";
+  TRRStatus2["VALIDATED"] = "validated";
+  TRRStatus2["APPROVED"] = "approved";
+  TRRStatus2["REJECTED"] = "rejected";
+  TRRStatus2["COMPLETED"] = "completed";
+  return TRRStatus2;
+})(TRRStatus || {});
+var TaskStatus = /* @__PURE__ */ ((TaskStatus2) => {
+  TaskStatus2["TODO"] = "todo";
+  TaskStatus2["IN_PROGRESS"] = "in_progress";
+  TaskStatus2["REVIEW"] = "review";
+  TaskStatus2["DONE"] = "done";
+  TaskStatus2["BLOCKED"] = "blocked";
+  return TaskStatus2;
+})(TaskStatus || {});
+var ProjectSchema = z3.object({
+  id: z3.string(),
+  title: z3.string(),
+  description: z3.string().optional(),
+  customer: z3.object({
+    name: z3.string(),
+    industry: z3.string().optional(),
+    size: z3.enum(["startup", "small", "medium", "enterprise"]).optional(),
+    region: z3.string().optional(),
+    contact: z3.object({
+      name: z3.string(),
+      email: z3.string().email(),
+      role: z3.string().optional(),
+      phone: z3.string().optional()
+    }).optional()
+  }),
+  status: z3.nativeEnum(ProjectStatus),
+  priority: z3.nativeEnum(Priority),
+  owner: z3.string(),
+  // uid of project owner
+  team: z3.array(z3.string()),
+  // array of user uids
+  startDate: z3.date(),
+  endDate: z3.date().optional(),
+  estimatedValue: z3.number().optional(),
+  actualValue: z3.number().optional(),
+  tags: z3.array(z3.string()).default([]),
+  // Relations to other entities
+  povIds: z3.array(z3.string()).default([]),
+  trrIds: z3.array(z3.string()).default([]),
+  scenarioIds: z3.array(z3.string()).default([]),
+  // Metadata
+  createdAt: z3.date(),
+  updatedAt: z3.date(),
+  createdBy: z3.string(),
+  lastModifiedBy: z3.string()
+});
+var POVSchema = z3.object({
+  id: z3.string(),
+  projectId: z3.string(),
+  // reference to parent project
+  title: z3.string(),
+  description: z3.string(),
+  status: z3.nativeEnum(POVStatus),
+  priority: z3.nativeEnum(Priority),
+  // POV Specific Fields
+  objectives: z3.array(z3.object({
+    id: z3.string(),
+    description: z3.string(),
+    success_criteria: z3.string(),
+    status: z3.enum(["pending", "in_progress", "completed", "failed"]),
+    weight: z3.number().min(0).max(100).default(100)
+    // percentage weight
+  })).default([]),
+  testPlan: z3.object({
+    scenarios: z3.array(z3.string()),
+    // scenario IDs
+    environment: z3.string().optional(),
+    timeline: z3.object({
+      start: z3.date(),
+      end: z3.date(),
+      milestones: z3.array(z3.object({
+        id: z3.string(),
+        title: z3.string(),
+        date: z3.date(),
+        status: z3.enum(["upcoming", "in_progress", "completed", "overdue"])
+      }))
+    }),
+    resources: z3.array(z3.object({
+      type: z3.enum(["personnel", "equipment", "software", "budget"]),
+      description: z3.string(),
+      quantity: z3.number().optional(),
+      cost: z3.number().optional()
+    })).default([])
+  }).optional(),
+  // Success Metrics
+  successMetrics: z3.object({
+    businessValue: z3.object({
+      roi: z3.number().optional(),
+      costSavings: z3.number().optional(),
+      riskReduction: z3.string().optional(),
+      efficiency_gains: z3.string().optional()
+    }).optional(),
+    technicalMetrics: z3.object({
+      performance: z3.record(z3.number()).optional(),
+      reliability: z3.number().optional(),
+      // percentage
+      security_score: z3.number().optional()
+    }).optional()
+  }).default({}),
+  // Timeline tracking
+  phases: z3.array(z3.object({
+    id: z3.string(),
+    name: z3.string(),
+    description: z3.string().optional(),
+    startDate: z3.date(),
+    endDate: z3.date().optional(),
+    status: z3.nativeEnum(TaskStatus),
+    tasks: z3.array(z3.string()).default([])
+    // task IDs
+  })).default([]),
+  // Assignment
+  owner: z3.string(),
+  // uid of POV owner
+  team: z3.array(z3.string()).default([]),
+  // Metadata
+  createdAt: z3.date(),
+  updatedAt: z3.date(),
+  createdBy: z3.string(),
+  lastModifiedBy: z3.string()
+});
+var TRRSchema = z3.object({
+  id: z3.string(),
+  projectId: z3.string(),
+  // reference to parent project
+  povId: z3.string().optional(),
+  // optional reference to related POV
+  title: z3.string(),
+  description: z3.string(),
+  status: z3.nativeEnum(TRRStatus),
+  priority: z3.nativeEnum(Priority),
+  // TRR Specific Fields
+  riskAssessment: z3.object({
+    overall_score: z3.number().min(0).max(10),
+    categories: z3.array(z3.object({
+      category: z3.string(),
+      score: z3.number().min(0).max(10),
+      description: z3.string(),
+      mitigation: z3.string().optional(),
+      evidence: z3.array(z3.string()).default([])
+      // file URLs or references
+    }))
+  }),
+  findings: z3.array(z3.object({
+    id: z3.string(),
+    title: z3.string(),
+    description: z3.string(),
+    severity: z3.enum(["low", "medium", "high", "critical"]),
+    category: z3.string(),
+    evidence: z3.array(z3.object({
+      type: z3.enum(["screenshot", "log", "document", "test_result"]),
+      url: z3.string(),
+      description: z3.string().optional()
+    })).default([]),
+    recommendation: z3.string().optional(),
+    status: z3.enum(["open", "addressed", "accepted_risk", "false_positive"])
+  })).default([]),
+  // Validation and Approval
+  validation: z3.object({
+    validator: z3.string().optional(),
+    // uid of validator
+    validatedAt: z3.date().optional(),
+    validationNotes: z3.string().optional(),
+    approved: z3.boolean().optional()
+  }).optional(),
+  signoff: z3.object({
+    approver: z3.string().optional(),
+    // uid of approver
+    approvedAt: z3.date().optional(),
+    signoffNotes: z3.string().optional(),
+    digitalSignature: z3.string().optional()
+  }).optional(),
+  // Assignment
+  owner: z3.string(),
+  // uid of TRR owner
+  reviewers: z3.array(z3.string()).default([]),
+  // Metadata
+  createdAt: z3.date(),
+  updatedAt: z3.date(),
+  createdBy: z3.string(),
+  lastModifiedBy: z3.string()
+});
+var TaskSchema = z3.object({
+  id: z3.string(),
+  title: z3.string(),
+  description: z3.string().optional(),
+  status: z3.nativeEnum(TaskStatus),
+  priority: z3.nativeEnum(Priority),
+  // Relations
+  projectId: z3.string().optional(),
+  povId: z3.string().optional(),
+  trrId: z3.string().optional(),
+  parentTaskId: z3.string().optional(),
+  dependencies: z3.array(z3.string()).default([]),
+  // task IDs this task depends on
+  // Assignment and timing
+  assignee: z3.string().optional(),
+  // uid of assignee
+  estimatedHours: z3.number().optional(),
+  actualHours: z3.number().optional(),
+  startDate: z3.date().optional(),
+  dueDate: z3.date().optional(),
+  completedAt: z3.date().optional(),
+  // Task details
+  labels: z3.array(z3.string()).default([]),
+  checklist: z3.array(z3.object({
+    id: z3.string(),
+    text: z3.string(),
+    completed: z3.boolean().default(false)
+  })).default([]),
+  attachments: z3.array(z3.object({
+    name: z3.string(),
+    url: z3.string(),
+    type: z3.string(),
+    size: z3.number().optional()
+  })).default([]),
+  // Metadata
+  createdAt: z3.date(),
+  updatedAt: z3.date(),
+  createdBy: z3.string(),
+  lastModifiedBy: z3.string()
+});
+var NoteSchema = z3.object({
+  id: z3.string(),
+  title: z3.string().optional(),
+  content: z3.string(),
+  type: z3.enum(["note", "meeting", "decision", "action_item", "issue"]).default("note"),
+  // Relations - at least one must be specified
+  projectId: z3.string().optional(),
+  povId: z3.string().optional(),
+  trrId: z3.string().optional(),
+  taskId: z3.string().optional(),
+  // Classification
+  tags: z3.array(z3.string()).default([]),
+  isPrivate: z3.boolean().default(false),
+  isPinned: z3.boolean().default(false),
+  // Rich content
+  mentions: z3.array(z3.string()).default([]),
+  // user IDs mentioned in note
+  attachments: z3.array(z3.object({
+    name: z3.string(),
+    url: z3.string(),
+    type: z3.string()
+  })).default([]),
+  // Metadata
+  createdAt: z3.date(),
+  updatedAt: z3.date(),
+  createdBy: z3.string(),
+  lastModifiedBy: z3.string()
+});
+var TimelineEventSchema = z3.object({
+  id: z3.string(),
+  type: z3.enum([
+    "project_created",
+    "project_updated",
+    "project_completed",
+    "pov_created",
+    "pov_phase_completed",
+    "pov_completed",
+    "trr_created",
+    "trr_submitted",
+    "trr_approved",
+    "task_created",
+    "task_completed",
+    "milestone_reached",
+    "note_added",
+    "team_member_added",
+    "status_changed"
+  ]),
+  title: z3.string(),
+  description: z3.string().optional(),
+  // Relations
+  projectId: z3.string().optional(),
+  povId: z3.string().optional(),
+  trrId: z3.string().optional(),
+  taskId: z3.string().optional(),
+  // Event details
+  actor: z3.string(),
+  // uid of user who triggered the event
+  metadata: z3.record(z3.unknown()).optional(),
+  // additional event data
+  // Timing
+  timestamp: z3.date(),
+  createdAt: z3.date()
+});
+
 // src/index.ts
 if (typeof process !== "undefined" && process.env?.DEPLOYMENT_MODE === "self-hosted") {
   console.warn(
@@ -8139,11 +8461,16 @@ export {
   GroupManagementService,
   MemgraphService,
   OpenSearchService,
+  POVStatus,
+  Priority,
+  ProjectStatus,
   RBACMiddleware,
   ROLE_PERMISSIONS,
   RecordProcessingOrchestrator,
   RedisCacheService,
   RelationshipManagementService,
+  TRRStatus,
+  TaskStatus,
   TerraformGenerationService,
   USER_COLLECTION,
   UserManagementService,

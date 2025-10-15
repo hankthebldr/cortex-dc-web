@@ -1,6 +1,7 @@
 import {
   openDB
-} from "./chunk-TGBCE53Q.mjs";
+} from "./chunk-45BCUNX3.mjs";
+import "./chunk-2RCBK75L.mjs";
 
 // src/gemini-ai-service.ts
 var GeminiAIService = class {
@@ -3380,7 +3381,7 @@ async function getFirebaseApp() {
     return null;
   }
   try {
-    const db = await import("./src-HT6AQL3T.mjs");
+    const db = await import("./src-V4DH5BZF.mjs");
     return db.app || null;
   } catch (error) {
     console.error("Failed to import Firebase app:", error);

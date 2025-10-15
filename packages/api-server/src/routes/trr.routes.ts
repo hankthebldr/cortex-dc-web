@@ -64,4 +64,4 @@ router.delete('/:id', async (req: AuthRequest, res) => {
   }
 });
 
-export const trrRoutes = router;
+export const trrRoutes: import("express").Router = router;

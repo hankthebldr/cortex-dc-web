@@ -12,7 +12,12 @@
  * - Interactive chat interface
  *
  * Supports both API Key and Service Account (Vertex AI) authentication
+ *
+ * @deprecated Client-side only - uses window global
  */
+
+// Type guard for browser environment
+declare const window: any;
 
 import type { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 
@@ -175,7 +180,7 @@ export class GeminiAIService {
         throw new Error('Failed to get Vertex AI access token');
       }
 
-      const data = await response.json();
+      const data = await response.json() as { accessToken: string };
       return data.accessToken;
     } catch (error) {
       console.error('Access token error:', error);

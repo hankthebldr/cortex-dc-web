@@ -96,4 +96,4 @@ router.delete('/:id', async (req: AuthRequest, res) => {
   }
 });
 
-export const povRoutes = router;
+export const povRoutes: import("express").Router = router;

@@ -23,7 +23,16 @@ export async function POST(request: NextRequest) {
 
     // Use auth adapter to send verification email
     const auth = getAuth();
-    await auth.sendEmailVerification(sessionToken);
+
+    // Check if method is supported
+    if (!auth.sendEmailVerification) {
+      return NextResponse.json(
+        { error: 'Email verification not supported in current auth mode' },
+        { status: 501 }
+      );
+    }
+
+    await auth.sendEmailVerification();
 
     return NextResponse.json({
       success: true,
@@ -42,24 +51,34 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * GET /api/auth/email-verification?token=xxx
- * Verify email with token
+ * GET /api/auth/email-verification?code=xxx
+ * Verify email with verification code
  */
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const token = searchParams.get('token');
+    const code = searchParams.get('code');
 
-    if (!token) {
+    if (!code) {
       return NextResponse.json(
-        { error: 'Verification token is required' },
+        { error: 'Verification code is required' },
         { status: 400 }
       );
     }
 
     // Use auth adapter to verify email
     const auth = getAuth();
-    await auth.verifyEmail(token);
+
+    // Check if method is supported
+    if (!auth.verifyEmail) {
+      return NextResponse.redirect(
+        new URL(`/email-verification-error?error=${encodeURIComponent(
+          'Email verification not supported in current auth mode'
+        )}`, request.url)
+      );
+    }
+
+    await auth.verifyEmail(code);
 
     // Redirect to success page
     return NextResponse.redirect(new URL('/email-verified', request.url));

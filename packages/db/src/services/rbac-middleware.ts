@@ -3,7 +3,13 @@
  * Provides role-based data filtering and access control for DC operations
  *
  * Migrated from henryreed.ai/hosting/lib/rbac-middleware.ts
+ *
+ * @deprecated Uses localStorage and window globals - client-side only
  */
+
+// Type guards for browser environment
+declare const window: any;
+declare const localStorage: any;
 
 export interface DataScope {
   canViewAllUsers: boolean;

@@ -160,14 +160,11 @@ export class UserManagementService {
         status: 'active'
       };
 
-      const userId = await this.db.create<UserProfile>('users', userProfile);
+      const createdUser = await this.db.create<UserProfile>('users', userProfile);
 
       return {
         success: true,
-        profile: {
-          uid: userId,
-          ...userProfile
-        }
+        profile: createdUser
       };
     } catch (error: any) {
       console.error('Error creating user:', error);

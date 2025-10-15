@@ -141,12 +141,9 @@ export class OktaGroupSyncService {
       updatedAt: new Date()
     };
 
-    const userId = await db.create<UserProfile>('users', userProfile as any);
+    const createdUser = await db.create<UserProfile>('users', userProfile as any);
 
-    return {
-      ...userProfile,
-      id: userId
-    } as UserProfile;
+    return createdUser;
   }
 
   /**

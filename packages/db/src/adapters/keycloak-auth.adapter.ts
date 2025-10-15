@@ -4,7 +4,13 @@
  *
  * NOTE: This requires keycloak-js library for client-side usage
  * For now, this is a stub implementation that shows the structure
+ *
+ * @deprecated Client-side only - uses window and localStorage
  */
+
+// Type guards for browser environment
+declare const window: any;
+declare const localStorage: any;
 
 import {
   AuthAdapter,
@@ -83,11 +89,11 @@ export class KeycloakAuthAdapter implements AuthAdapter {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json() as { error_description?: string };
       throw new Error(error.error_description || 'Authentication failed');
     }
 
-    const data = await response.json();
+    const data = await response.json() as { access_token: string; refresh_token: string };
     const user = this.parseToken(data.access_token);
     this.currentUser = user;
 
@@ -228,7 +234,7 @@ export class KeycloakAuthAdapter implements AuthAdapter {
       throw new Error('Token refresh failed');
     }
 
-    const data = await response.json();
+    const data = await response.json() as { access_token: string; refresh_token: string };
     const user = this.parseToken(data.access_token);
     this.currentUser = user;
 

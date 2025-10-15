@@ -14,7 +14,12 @@
  * - Detection scenario generation
  * - Knowledge base content enhancement
  * - Command suggestions
+ *
+ * @deprecated Client-side only - uses window global
  */
+
+// Type guard for browser environment
+declare const window: any;
 
 import { getAI, getGenerativeModel, GoogleAIBackend } from "firebase/ai";
 

@@ -187,7 +187,8 @@ export class FederatedDataService {
         updatedAt: new Date()
       };
 
-      const id = await db.create<T>(collection, itemData);
+      const createdItem = await db.create<T>(collection, itemData);
+      const id = (createdItem as any).id;
 
       // Log creation
       await this.accessControl.logAccess({
@@ -516,7 +517,9 @@ export class FederatedDataService {
     // Limit cache size
     if (this.queryCache.size > 1000) {
       const firstKey = this.queryCache.keys().next().value;
-      this.queryCache.delete(firstKey);
+      if (firstKey) {
+        this.queryCache.delete(firstKey);
+      }
     }
   }
 

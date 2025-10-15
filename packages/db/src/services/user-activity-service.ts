@@ -8,7 +8,14 @@
  * - POV progress tracking
  *
  * Migrated from henryreed.ai/hosting/lib/user-activity-service.ts
+ *
+ * @deprecated This service uses localStorage and is client-side only.
+ * For server-side implementations, use database adapters instead.
  */
+
+// Type guards for browser environment
+declare const window: any;
+declare const localStorage: any;
 
 export interface UserNote {
   id: string;

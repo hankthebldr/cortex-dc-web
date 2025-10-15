@@ -189,14 +189,14 @@ const NavigationItemComponent: React.FC<NavigationItemComponentProps> = ({
 };
 
 // Breadcrumb Component
-export interface BreadcrumbItem {
+export interface ModernBreadcrumbItem {
   label: string;
   href?: string;
   icon?: React.ReactNode;
 }
 
 export interface ModernBreadcrumbsProps {
-  items: BreadcrumbItem[];
+  items: ModernBreadcrumbItem[];
   className?: string;
   onNavigate?: (href: string) => void;
 }
