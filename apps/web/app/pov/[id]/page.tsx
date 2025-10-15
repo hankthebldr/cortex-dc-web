@@ -500,9 +500,9 @@ function POVDetailContent() {
                               <p className="font-medium text-gray-900">{scenario.title || scenario.name}</p>
                               <p className="text-sm text-gray-600">{scenario.description}</p>
                             </div>
-                            <Button variant="outline" size="sm" asChild>
-                              <Link href={`/scenarios/${scenario.id}`}>View</Link>
-                            </Button>
+                            <Link href={`/scenarios/${scenario.id}`}>
+                              <Button variant="outline" size="sm">View</Button>
+                            </Link>
                           </div>
                         </CardContent>
                       </Card>

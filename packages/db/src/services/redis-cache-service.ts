@@ -109,7 +109,7 @@ export class RedisCacheService {
 
       if (value) {
         this.stats.hits++;
-        return JSON.parse(value) as T;
+        return JSON.parse(value as string) as T;
       } else {
         this.stats.misses++;
         return null;

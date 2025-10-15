@@ -3,7 +3,7 @@
  * Integrates Firebase Auth with Backend API
  */
 
-import { auth } from '@cortex/db';
+import { auth } from './firebase';
 import { apiClient } from './api-client';
 import {
   signInWithEmailAndPassword,

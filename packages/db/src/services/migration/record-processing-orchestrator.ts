@@ -302,7 +302,8 @@ class DatabaseValidationStage {
     const foreignKeyChecks = this.extractForeignKeys(records);
 
     // Batch fetch all related records
-    for (const [entity, ids] of foreignKeyChecks.entries()) {
+    // Convert Map.entries() to array for ES5 compatibility
+    for (const [entity, ids] of Array.from(foreignKeyChecks.entries())) {
       try {
         const existingRecords = await db.findMany(entity, {
           filters: [{ field: 'id', operator: 'in', value: Array.from(ids) }]
@@ -637,7 +638,7 @@ export class RecordProcessingOrchestrator extends EventEmitter {
         offset
       });
 
-      return records;
+      return records as StagingRecord[];
     } catch (error) {
       console.error('Failed to fetch staging records:', error);
       return [];
@@ -690,7 +691,7 @@ export class RecordProcessingOrchestrator extends EventEmitter {
     const db = getDatabase();
 
     try {
-      const job = await db.findOne('dataImportJobs', jobId);
+      const job = await db.findOne('dataImportJobs', jobId) as any;
       return job.configuration;
     } catch (error) {
       console.error('Failed to get job config:', error);

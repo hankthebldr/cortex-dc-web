@@ -1,0 +1,79 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+.next
+out
+dist
+build
+
+# Development
+.env*.local
+.env.development
+
+# Testing
+coverage
+.nyc_output
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__
+__mocks__
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Misc
+.eslintcache
+.turbo
+.cache
+temp
+tmp
+
+# Firebase
+.firebaserc
+firebase.json
+firestore.rules
+firestore.indexes.json
+storage.rules
+emulator-data
+
+# Kubernetes
+kubernetes
+k8s
+helm
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore

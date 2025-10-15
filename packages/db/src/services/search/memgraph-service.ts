@@ -82,7 +82,7 @@ export class MemgraphService {
 
       this.driver = neo4j.driver(
         uri,
-        user && password ? neo4j.auth.basic(user, password) : neo4j.auth.none()
+        user && password ? neo4j.auth.basic(user, password) : {} as any
       );
 
       // Verify connectivity

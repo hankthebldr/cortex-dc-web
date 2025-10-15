@@ -212,35 +212,76 @@ services:
   # ======================
   # Frontend (Next.js)
   # ======================
-  # Note: This service requires a Dockerfile to be created
-  # Uncomment after implementing apps/web/Dockerfile
-  #
-  # frontend:
-  #   build:
-  #     context: .
-  #     dockerfile: apps/web/Dockerfile
-  #   container_name: cortex-frontend
-  #   restart: unless-stopped
-  #   environment:
-  #     NODE_ENV: production
-  #
-  #     # API Configuration
-  #     NEXT_PUBLIC_API_URL: http://localhost:8080
-  #
-  #     # Keycloak Configuration
-  #     NEXT_PUBLIC_KEYCLOAK_URL: http://localhost:8180
-  #     NEXT_PUBLIC_KEYCLOAK_REALM: cortex
-  #     NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: cortex-web
-  #
-  #     # Feature Flags
-  #     NEXT_PUBLIC_DEPLOYMENT_MODE: self-hosted
-  #     NEXT_PUBLIC_USE_BACKEND_API: true
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - api-server
-  #   networks:
-  #     - cortex-network
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8080
+        NEXT_PUBLIC_DEPLOYMENT_MODE: self-hosted
+        NEXT_PUBLIC_KEYCLOAK_URL: http://localhost:8180
+        NEXT_PUBLIC_KEYCLOAK_REALM: cortex
+        NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: cortex-web
+        NEXT_PUBLIC_STORAGE_MODE: minio
+        NEXT_PUBLIC_MINIO_ENDPOINT: http://localhost:9000
+        NEXT_PUBLIC_MINIO_BUCKET: cortex-storage
+        NEXT_PUBLIC_APP_NAME: Cortex DC
+        NEXT_PUBLIC_APP_URL: http://localhost:3000
+        NEXT_PUBLIC_ENVIRONMENT: production
+    container_name: cortex-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DEPLOYMENT_MODE: self-hosted
+
+      # Database
+      DATABASE_URL: postgresql://cortex:${POSTGRES_PASSWORD:-cortex_secure_password}@postgres:5432/cortex
+
+      # Keycloak (backend)
+      KEYCLOAK_URL: http://keycloak:8180
+      KEYCLOAK_REALM: cortex
+      KEYCLOAK_CLIENT_ID: cortex-api
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-your-client-secret-here}
+
+      # Storage (backend)
+      STORAGE_MODE: minio
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET: cortex-storage
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin_password}
+      MINIO_USE_SSL: false
+
+      # Cache & Queue
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
+      NATS_URL: nats://nats:4222
+
+      # Security
+      JWT_SECRET: ${JWT_SECRET:-your-jwt-secret-minimum-32-characters-here}
+      SESSION_SECRET: ${SESSION_SECRET:-your-session-secret-minimum-32-characters-here}
+
+      # AI (optional)
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - cortex-network
 
 # ======================
 # Volumes

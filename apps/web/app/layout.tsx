@@ -1,25 +1,26 @@
-'use client';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { Providers } from '@/components/providers';
 
-import { Inter } from 'next/font/google'
-import './globals.css'
-import { AuthProvider } from '@/contexts/auth-context'
+const inter = Inter({ subsets: ['latin'] });
 
-const inter = Inter({ subsets: ['latin'] })
+export const metadata = {
+  title: 'Cortex DC Portal',
+  description: 'Domain Consultant engagement tracking and management',
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>
-          <main className="min-h-screen">
-            {children}
-          </main>
-        </AuthProvider>
+        <Providers>
+          <main className="min-h-screen">{children}</main>
+        </Providers>
       </body>
     </html>
-  )
+  );
 }

@@ -467,7 +467,7 @@ export class OpenSearchService {
       await redisCacheService.invalidate(`search:*`);
 
       console.log(`[OpenSearch] Deleted document: ${type}/${id}`);
-    } catch (error) {
+    } catch (error: any) {
       if (error.meta?.statusCode === 404) {
         console.warn(`[OpenSearch] Document not found: ${type}/${id}`);
       } else {
@@ -499,7 +499,11 @@ export class OpenSearchService {
         }
       });
 
-      return body.suggest?.completion?.[0]?.options?.map((opt: any) => opt.text) || [];
+      const options = body.suggest?.completion?.[0]?.options;
+      if (Array.isArray(options)) {
+        return options.map((opt: any) => opt.text);
+      }
+      return [];
     } catch (error) {
       console.error('[OpenSearch] Error getting suggestions:', error);
       return [];
@@ -517,7 +521,7 @@ export class OpenSearchService {
       const totalDocuments = body.count;
 
       const { body: stats } = await this.client!.indices.stats({ index: type });
-      const indexSize = stats.indices[type]?.total?.store?.size_in_bytes || 0;
+      const indexSize = stats.indices?.[type]?.total?.store?.size_in_bytes || 0;
 
       return {
         totalDocuments,

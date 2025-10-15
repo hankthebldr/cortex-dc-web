@@ -1,6 +1,18 @@
 // Data services
 export * from './data-service';
 
+// Access control and permissions
+export { accessControlService, AccessControlService } from './access-control-service';
+export type { AccessContext, DataScope, AccessQuery, AccessAuditLog } from './access-control-service';
+
+// Group management
+export { groupManagementService, GroupManagementService } from './group-management-service';
+export type { Group, GroupMembership, CreateGroupRequest } from './group-management-service';
+
+// Federated data service (with built-in access control)
+export { federatedDataService, FederatedDataService } from './federated-data-service';
+export type { QueryOptions, QueryResult, DataAccessStats } from './federated-data-service';
+
 // User management services (migrated from henryreed.ai)
 // Export only the service and types from user-management-service
 export {
@@ -66,7 +78,7 @@ export type {
   ProcessingConfig,
   StagingRecord,
   ImportConfiguration,
-  ValidationResult,
+  ValidationResult as MigrationValidationResult,
   TransformedRecord,
   WriteResult,
   ProcessingMetrics,

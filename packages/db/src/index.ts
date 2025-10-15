@@ -30,7 +30,8 @@ export type { AuthAdapter, AuthUser, AuthResult } from './adapters/auth.adapter'
 
 // Types (includes the main POV and TRR schemas)
 // Note: Some types are re-exported from services to avoid ambiguity
-export type { UserProfile, UserRole, ROLE_PERMISSIONS } from './types/auth';
+export { UserRole, ROLE_PERMISSIONS } from './types/auth';
+export type { UserProfile } from './types/auth';
 export type { TimelineEvent } from './types/projects';
 export type {
   DatabaseClient,

@@ -1136,6 +1136,54 @@ var init_async = __esm({
   }
 });
 
+// ../utils/src/browser-info.ts
+function getBrowserInfo(userAgent) {
+  const ua = userAgent || (typeof navigator !== "undefined" ? navigator.userAgent : "");
+  let browser = "Unknown";
+  if (ua.includes("Chrome") && !ua.includes("Edge")) {
+    browser = "Chrome";
+  } else if (ua.includes("Safari") && !ua.includes("Chrome")) {
+    browser = "Safari";
+  } else if (ua.includes("Firefox")) {
+    browser = "Firefox";
+  } else if (ua.includes("Edge")) {
+    browser = "Edge";
+  } else if (ua.includes("MSIE") || ua.includes("Trident")) {
+    browser = "Internet Explorer";
+  }
+  let os = "Unknown";
+  if (ua.includes("Windows")) {
+    os = "Windows";
+  } else if (ua.includes("Mac")) {
+    os = "macOS";
+  } else if (ua.includes("Linux")) {
+    os = "Linux";
+  } else if (ua.includes("Android")) {
+    os = "Android";
+  } else if (ua.includes("iOS") || ua.includes("iPhone") || ua.includes("iPad")) {
+    os = "iOS";
+  }
+  let deviceType = "desktop";
+  if (ua.includes("Mobile")) {
+    deviceType = "mobile";
+  } else if (ua.includes("Tablet") || ua.includes("iPad")) {
+    deviceType = "tablet";
+  }
+  return {
+    browser,
+    os,
+    deviceType
+  };
+}
+function generateSessionId() {
+  return `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+}
+var init_browser_info = __esm({
+  "../utils/src/browser-info.ts"() {
+    "use strict";
+  }
+});
+
 // ../utils/src/validation.ts
 function validateEmail(email) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1829,6 +1877,8 @@ __export(src_exports, {
   formatDate: () => formatDate,
   formatRelativeTime: () => formatRelativeTime,
   generateId: () => generateId,
+  generateSessionId: () => generateSessionId,
+  getBrowserInfo: () => getBrowserInfo,
   parseArgs: () => parseArgs,
   platformSettingsService: () => platformSettingsService,
   slugify: () => slugify,
@@ -1847,6 +1897,7 @@ var init_src = __esm({
     init_date();
     init_string();
     init_async();
+    init_browser_info();
     init_validation();
     init_arg_parser();
     init_cloud_store_service();
@@ -4201,7 +4252,13 @@ var init_postgres_adapter = __esm({
         const mapping = {
           users: "user",
           povs: "pOV",
-          trrs: "tRR"
+          trrs: "tRR",
+          activityLogs: "activityLog",
+          loginEvents: "loginEvent",
+          userSessions: "userSession",
+          dataImportJobs: "dataImportJob",
+          stagingRecords: "stagingRecord",
+          dataMigrationLogs: "dataMigrationLog"
         };
         return mapping[collection3] || collection3;
       }
@@ -6950,6 +7007,1871 @@ var init_terraform_generation_service = __esm({
   }
 });
 
+// src/services/redis-cache-service.ts
+function getRedisCacheService() {
+  if (!redisCacheInstance) {
+    redisCacheInstance = new RedisCacheService();
+  }
+  return redisCacheInstance;
+}
+var import_redis, RedisCacheService, CacheKeys, CacheInvalidationPatterns, redisCacheInstance, redisCacheService;
+var init_redis_cache_service = __esm({
+  "src/services/redis-cache-service.ts"() {
+    "use strict";
+    import_redis = require("redis");
+    RedisCacheService = class {
+      constructor() {
+        this.client = null;
+        this.isConnected = false;
+        this.stats = {
+          hits: 0,
+          misses: 0
+        };
+      }
+      /**
+       * Initialize Redis connection
+       */
+      async connect() {
+        if (this.isConnected) {
+          return;
+        }
+        try {
+          const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+          this.client = (0, import_redis.createClient)({
+            url: redisUrl,
+            socket: {
+              reconnectStrategy: (retries) => {
+                if (retries > 10) {
+                  console.error("Max Redis reconnection attempts reached");
+                  return new Error("Max reconnection attempts reached");
+                }
+                return Math.min(retries * 100, 3e3);
+              }
+            }
+          });
+          this.client.on("error", (err) => {
+            console.error("Redis Client Error:", err);
+          });
+          this.client.on("connect", () => {
+            console.log("[RedisCacheService] Connected to Redis");
+          });
+          this.client.on("reconnecting", () => {
+            console.log("[RedisCacheService] Reconnecting to Redis...");
+          });
+          await this.client.connect();
+          this.isConnected = true;
+        } catch (error) {
+          console.error("Failed to connect to Redis:", error);
+          this.isConnected = false;
+        }
+      }
+      /**
+       * Disconnect from Redis
+       */
+      async disconnect() {
+        if (this.client && this.isConnected) {
+          await this.client.quit();
+          this.isConnected = false;
+        }
+      }
+      /**
+       * Check if Redis is connected
+       */
+      isReady() {
+        return this.isConnected && this.client !== null;
+      }
+      /**
+       * Get value from cache
+       */
+      async get(key) {
+        if (!this.isReady()) {
+          return null;
+        }
+        try {
+          const value = await this.client.get(key);
+          if (value) {
+            this.stats.hits++;
+            return JSON.parse(value);
+          } else {
+            this.stats.misses++;
+            return null;
+          }
+        } catch (error) {
+          console.error("Redis GET error:", error);
+          this.stats.misses++;
+          return null;
+        }
+      }
+      /**
+       * Set value in cache with optional TTL
+       */
+      async set(key, value, options) {
+        if (!this.isReady()) {
+          return;
+        }
+        try {
+          const serialized = JSON.stringify(value);
+          const ttl = options?.ttl || 300;
+          await this.client.setEx(key, ttl, serialized);
+        } catch (error) {
+          console.error("Redis SET error:", error);
+        }
+      }
+      /**
+       * Delete value from cache
+       */
+      async delete(key) {
+        if (!this.isReady()) {
+          return;
+        }
+        try {
+          await this.client.del(key);
+        } catch (error) {
+          console.error("Redis DELETE error:", error);
+        }
+      }
+      /**
+       * Delete all keys matching a pattern
+       */
+      async deletePattern(pattern) {
+        if (!this.isReady()) {
+          return;
+        }
+        try {
+          const keys = await this.client.keys(pattern);
+          if (keys.length > 0) {
+            await this.client.del(keys);
+          }
+        } catch (error) {
+          console.error("Redis DELETE PATTERN error:", error);
+        }
+      }
+      /**
+       * Get or set pattern - returns cached value or computes and caches result
+       */
+      async getOrSet(key, fetchFn, options) {
+        const cached = await this.get(key);
+        if (cached !== null) {
+          return cached;
+        }
+        const data = await fetchFn();
+        await this.set(key, data, options);
+        return data;
+      }
+      /**
+       * Invalidate cache by pattern (e.g., "user:*", "analytics:*")
+       */
+      async invalidate(pattern) {
+        await this.deletePattern(pattern);
+      }
+      /**
+       * Clear all cache
+       */
+      async flush() {
+        if (!this.isReady()) {
+          return;
+        }
+        try {
+          await this.client.flushDb();
+        } catch (error) {
+          console.error("Redis FLUSH error:", error);
+        }
+      }
+      /**
+       * Get cache statistics
+       */
+      async getStats() {
+        const total = this.stats.hits + this.stats.misses;
+        const hitRate = total > 0 ? this.stats.hits / total : 0;
+        let size = 0;
+        if (this.isReady()) {
+          try {
+            const info = await this.client.info("memory");
+            const match = info.match(/used_memory:(\d+)/);
+            size = match ? parseInt(match[1], 10) : 0;
+          } catch (error) {
+            console.error("Error getting cache stats:", error);
+          }
+        }
+        return {
+          hits: this.stats.hits,
+          misses: this.stats.misses,
+          hitRate: Math.round(hitRate * 100) / 100,
+          size
+        };
+      }
+      /**
+       * Reset statistics
+       */
+      resetStats() {
+        this.stats.hits = 0;
+        this.stats.misses = 0;
+      }
+      /**
+       * Utility: Generate cache key with prefix
+       */
+      generateKey(prefix, ...parts) {
+        return `${prefix}:${parts.join(":")}`;
+      }
+    };
+    CacheKeys = {
+      // User data
+      user: (userId) => `user:${userId}`,
+      userByEmail: (email) => `user:email:${email}`,
+      userList: (filters) => `users:list:${filters}`,
+      // Analytics
+      loginAnalytics: (startDate, endDate) => `analytics:login:${startDate}:${endDate}`,
+      userActivity: (userId) => `analytics:activity:${userId}`,
+      adminAnalytics: (period) => `analytics:admin:${period}`,
+      recentActivity: (limit2) => `analytics:recent:${limit2}`,
+      // POVs and TRRs
+      pov: (povId) => `pov:${povId}`,
+      povList: (filters) => `povs:list:${filters}`,
+      trr: (trrId) => `trr:${trrId}`,
+      trrList: (filters) => `trrs:list:${filters}`,
+      // Sessions
+      session: (sessionId) => `session:${sessionId}`,
+      userSessions: (userId) => `sessions:user:${userId}`,
+      activeSessions: () => "sessions:active"
+    };
+    CacheInvalidationPatterns = {
+      // Invalidate all user-related caches
+      user: (userId) => [`user:${userId}*`, `analytics:activity:${userId}*`],
+      // Invalidate all analytics caches
+      analytics: () => ["analytics:*"],
+      // Invalidate POV-related caches
+      pov: (povId) => [`pov:${povId}*`, "povs:list:*"],
+      // Invalidate TRR-related caches
+      trr: (trrId) => [`trr:${trrId}*`, "trrs:list:*"],
+      // Invalidate session caches
+      sessions: (userId) => [`sessions:user:${userId}*`, "sessions:active*"]
+    };
+    redisCacheInstance = null;
+    redisCacheService = getRedisCacheService();
+  }
+});
+
+// src/services/event-tracking-service.ts
+var EventTrackingService, eventTrackingService;
+var init_event_tracking_service = __esm({
+  "src/services/event-tracking-service.ts"() {
+    "use strict";
+    init_database_factory();
+    init_redis_cache_service();
+    EventTrackingService = class {
+      /**
+       * Log a user activity event
+       */
+      async logActivity(event) {
+        try {
+          const db2 = getDatabase();
+          await db2.create("activityLogs", {
+            userId: event.userId,
+            action: event.action,
+            entityType: event.entityType,
+            entityId: event.entityId,
+            entityTitle: event.entityTitle,
+            metadata: event.metadata,
+            sessionId: event.sessionId,
+            ipAddress: event.ipAddress,
+            userAgent: event.userAgent,
+            timestamp: /* @__PURE__ */ new Date()
+          });
+        } catch (error) {
+          console.error("Error logging activity:", error);
+        }
+      }
+      /**
+       * Log a user login event
+       */
+      async logLogin(event) {
+        try {
+          const db2 = getDatabase();
+          await db2.create("loginEvents", {
+            userId: event.userId,
+            email: event.email,
+            loginMethod: event.loginMethod,
+            success: event.success,
+            failureReason: event.failureReason,
+            sessionId: event.sessionId,
+            ipAddress: event.ipAddress,
+            userAgent: event.userAgent,
+            location: event.location,
+            deviceType: event.deviceType,
+            browser: event.browser,
+            os: event.os,
+            timestamp: /* @__PURE__ */ new Date()
+          });
+          if (event.success) {
+            await this.logActivity({
+              userId: event.userId,
+              action: "login",
+              entityType: "User",
+              entityId: event.userId,
+              metadata: {
+                method: event.loginMethod,
+                deviceType: event.deviceType
+              },
+              sessionId: event.sessionId,
+              ipAddress: event.ipAddress,
+              userAgent: event.userAgent
+            });
+          }
+        } catch (error) {
+          console.error("Error logging login event:", error);
+        }
+      }
+      /**
+       * Create or update a user session
+       */
+      async createSession(session) {
+        try {
+          const db2 = getDatabase();
+          const existingSession = await db2.findByField(
+            "userSessions",
+            "sessionId",
+            session.sessionId
+          );
+          if (existingSession) {
+            await db2.update("userSessions", existingSession.id, {
+              lastActivity: /* @__PURE__ */ new Date(),
+              isActive: true
+            });
+          } else {
+            await db2.create("userSessions", {
+              userId: session.userId,
+              sessionId: session.sessionId,
+              ipAddress: session.ipAddress,
+              userAgent: session.userAgent,
+              isActive: true,
+              lastActivity: /* @__PURE__ */ new Date(),
+              createdAt: /* @__PURE__ */ new Date(),
+              expiresAt: session.expiresAt
+            });
+          }
+        } catch (error) {
+          console.error("Error creating session:", error);
+        }
+      }
+      /**
+       * Update session activity
+       */
+      async updateSessionActivity(sessionId) {
+        try {
+          const db2 = getDatabase();
+          const session = await db2.findByField("userSessions", "sessionId", sessionId);
+          if (session) {
+            await db2.update("userSessions", session.id, {
+              lastActivity: /* @__PURE__ */ new Date()
+            });
+          }
+        } catch (error) {
+          console.error("Error updating session activity:", error);
+        }
+      }
+      /**
+       * End a user session
+       */
+      async endSession(sessionId) {
+        try {
+          const db2 = getDatabase();
+          const session = await db2.findByField("userSessions", "sessionId", sessionId);
+          if (session) {
+            await db2.update("userSessions", session.id, {
+              isActive: false
+            });
+          }
+        } catch (error) {
+          console.error("Error ending session:", error);
+        }
+      }
+      /**
+       * Get login analytics for a time period (with Redis caching)
+       */
+      async getLoginAnalytics(startDate, endDate) {
+        const cacheKey = CacheKeys.loginAnalytics(
+          startDate.toISOString(),
+          endDate.toISOString()
+        );
+        const cached = await redisCacheService.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
+        try {
+          const db2 = getDatabase();
+          const loginEvents = await db2.findMany("loginEvents", {
+            filters: [
+              { field: "timestamp", operator: ">=", value: startDate },
+              { field: "timestamp", operator: "<=", value: endDate }
+            ],
+            orderBy: "timestamp",
+            orderDirection: "desc"
+          });
+          const totalLogins = loginEvents.length;
+          const successfulLogins = loginEvents.filter((e) => e.success).length;
+          const failedLogins = totalLogins - successfulLogins;
+          const uniqueUsers = new Set(loginEvents.map((e) => e.userId)).size;
+          const loginsByMethod = {};
+          loginEvents.forEach((event) => {
+            loginsByMethod[event.loginMethod] = (loginsByMethod[event.loginMethod] || 0) + 1;
+          });
+          const loginsByDay = [];
+          const dayMap = /* @__PURE__ */ new Map();
+          loginEvents.forEach((event) => {
+            const date = new Date(event.timestamp).toISOString().split("T")[0];
+            dayMap.set(date, (dayMap.get(date) || 0) + 1);
+          });
+          dayMap.forEach((count, date) => {
+            loginsByDay.push({ date, count });
+          });
+          loginsByDay.sort((a, b) => a.date.localeCompare(b.date));
+          const recentLogins = loginEvents.slice(0, 50);
+          const analytics = {
+            totalLogins,
+            successfulLogins,
+            failedLogins,
+            uniqueUsers,
+            loginsByMethod,
+            loginsByDay,
+            recentLogins
+          };
+          await redisCacheService.set(cacheKey, analytics, { ttl: 600 });
+          return analytics;
+        } catch (error) {
+          console.error("Error getting login analytics:", error);
+          return {
+            totalLogins: 0,
+            successfulLogins: 0,
+            failedLogins: 0,
+            uniqueUsers: 0,
+            loginsByMethod: {},
+            loginsByDay: [],
+            recentLogins: []
+          };
+        }
+      }
+      /**
+       * Get user activity analytics (with Redis caching)
+       */
+      async getUserActivityAnalytics(userId) {
+        const cacheKey = CacheKeys.userActivity(userId);
+        const cached = await redisCacheService.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
+        try {
+          const db2 = getDatabase();
+          const activities = await db2.findMany("activityLogs", {
+            filters: [{ field: "userId", operator: "==", value: userId }],
+            orderBy: "timestamp",
+            orderDirection: "desc"
+          });
+          const totalActions = activities.length;
+          const actionsByType = {};
+          activities.forEach((activity) => {
+            actionsByType[activity.action] = (actionsByType[activity.action] || 0) + 1;
+          });
+          const recentActivity = activities.slice(0, 50);
+          const lastActive = activities.length > 0 ? new Date(activities[0].timestamp) : null;
+          const sessions = await db2.findMany("userSessions", {
+            filters: [
+              { field: "userId", operator: "==", value: userId },
+              { field: "isActive", operator: "==", value: true }
+            ]
+          });
+          const analytics = {
+            userId,
+            totalActions,
+            actionsByType,
+            recentActivity,
+            lastActive,
+            sessionsCount: sessions.length
+          };
+          await redisCacheService.set(cacheKey, analytics, { ttl: 300 });
+          return analytics;
+        } catch (error) {
+          console.error("Error getting user activity analytics:", error);
+          return {
+            userId,
+            totalActions: 0,
+            actionsByType: {},
+            recentActivity: [],
+            lastActive: null,
+            sessionsCount: 0
+          };
+        }
+      }
+      /**
+       * Get recent activity logs for admin dashboard
+       */
+      async getRecentActivity(limit2 = 100) {
+        try {
+          const db2 = getDatabase();
+          const activities = await db2.findMany("activityLogs", {
+            orderBy: "timestamp",
+            orderDirection: "desc",
+            limit: limit2
+          });
+          return activities;
+        } catch (error) {
+          console.error("Error getting recent activity:", error);
+          return [];
+        }
+      }
+      /**
+       * Get active user sessions
+       */
+      async getActiveSessions(userId) {
+        try {
+          const db2 = getDatabase();
+          const filters = [
+            { field: "isActive", operator: "==", value: true }
+          ];
+          if (userId) {
+            filters.push({ field: "userId", operator: "==", value: userId });
+          }
+          const sessions = await db2.findMany("userSessions", {
+            filters,
+            orderBy: "lastActivity",
+            orderDirection: "desc"
+          });
+          return sessions;
+        } catch (error) {
+          console.error("Error getting active sessions:", error);
+          return [];
+        }
+      }
+      /**
+       * Clean up expired sessions
+       */
+      async cleanupExpiredSessions() {
+        try {
+          const db2 = getDatabase();
+          const expiredSessions = await db2.findMany("userSessions", {
+            filters: [
+              { field: "expiresAt", operator: "<", value: /* @__PURE__ */ new Date() },
+              { field: "isActive", operator: "==", value: true }
+            ]
+          });
+          for (const session of expiredSessions) {
+            await db2.update("userSessions", session.id, {
+              isActive: false
+            });
+          }
+        } catch (error) {
+          console.error("Error cleaning up expired sessions:", error);
+        }
+      }
+    };
+    eventTrackingService = new EventTrackingService();
+  }
+});
+
+// src/services/migration/record-processing-orchestrator.ts
+var import_events, DEFAULT_CONFIG, FastValidationStage, TransformationStage, DatabaseValidationStage, DatabaseWriteStage, RecordProcessingOrchestrator;
+var init_record_processing_orchestrator = __esm({
+  "src/services/migration/record-processing-orchestrator.ts"() {
+    "use strict";
+    import_events = require("events");
+    init_database_factory();
+    DEFAULT_CONFIG = {
+      initialBatchSize: 1e3,
+      minBatchSize: 100,
+      maxBatchSize: 1e4,
+      maxParallelBatches: 8,
+      maxWorkersPerBatch: 4,
+      memoryThresholdMB: 1024,
+      dbConnectionPoolSize: 20,
+      prefetchSize: 5e3,
+      maxRetries: 3,
+      retryBackoffMs: [1e3, 5e3, 15e3],
+      errorThresholdPercent: 10,
+      pauseBetweenBatchesMs: 100,
+      healthCheckIntervalMs: 5e3,
+      progressReportIntervalMs: 2e3
+    };
+    FastValidationStage = class {
+      async process(records) {
+        const results = {
+          valid: [],
+          invalid: [],
+          warnings: []
+        };
+        const chunkSize = Math.ceil(records.length / 4);
+        const chunks = this.chunkArray(records, chunkSize);
+        for (const chunk of chunks) {
+          const validChunk = chunk.filter((record) => this.validateRecord(record));
+          results.valid.push(...validChunk);
+        }
+        return results;
+      }
+      validateRecord(record) {
+        return record.rawData && Object.keys(record.rawData).length > 0;
+      }
+      chunkArray(array, size) {
+        const chunks = [];
+        for (let i = 0; i < array.length; i += size) {
+          chunks.push(array.slice(i, i + size));
+        }
+        return chunks;
+      }
+    };
+    TransformationStage = class {
+      constructor() {
+        this.transformationCache = /* @__PURE__ */ new Map();
+      }
+      async process(records, config) {
+        const orderedTransforms = config.transformations.sort((a, b) => a.order - b.order);
+        const results = await Promise.all(
+          records.map((record) => this.transformRecord(record, orderedTransforms))
+        );
+        return results;
+      }
+      async transformRecord(record, transforms) {
+        let data = { ...record.rawData };
+        for (const transform of transforms) {
+          const cacheKey = this.getCacheKey(transform, data);
+          if (this.transformationCache.has(cacheKey)) {
+            data = this.transformationCache.get(cacheKey);
+            continue;
+          }
+          data = await this.applyTransformation(data, transform);
+          if (this.isDeterministic(transform)) {
+            this.transformationCache.set(cacheKey, data);
+          }
+        }
+        return {
+          id: record.id,
+          originalData: record.rawData,
+          transformedData: data,
+          timestamp: /* @__PURE__ */ new Date()
+        };
+      }
+      getCacheKey(transform, data) {
+        return `${transform.id}:${JSON.stringify(data)}`;
+      }
+      isDeterministic(transform) {
+        return !["timestamp", "now", "random"].includes(transform.type);
+      }
+      async applyTransformation(data, transform) {
+        switch (transform.type) {
+          case "trim":
+            return Object.fromEntries(
+              Object.entries(data).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])
+            );
+          case "lowercase":
+            return Object.fromEntries(
+              Object.entries(data).map(([k, v]) => [k, typeof v === "string" ? v.toLowerCase() : v])
+            );
+          case "uppercase":
+            return Object.fromEntries(
+              Object.entries(data).map(([k, v]) => [k, typeof v === "string" ? v.toUpperCase() : v])
+            );
+          default:
+            return data;
+        }
+      }
+    };
+    DatabaseValidationStage = class {
+      constructor() {
+        this.validationCache = /* @__PURE__ */ new Map();
+        this.batchLookupCache = /* @__PURE__ */ new Map();
+      }
+      async process(records) {
+        const db2 = getDatabase();
+        await this.prefetchValidationData(records, db2);
+        const validationPromises = records.map(
+          (record) => this.validateRecord(record, db2)
+        );
+        const results = await Promise.all(validationPromises);
+        return this.aggregateResults(results);
+      }
+      async prefetchValidationData(records, db2) {
+        const foreignKeyChecks = this.extractForeignKeys(records);
+        for (const [entity, ids] of Array.from(foreignKeyChecks.entries())) {
+          try {
+            const existingRecords = await db2.findMany(entity, {
+              filters: [{ field: "id", operator: "in", value: Array.from(ids) }]
+            });
+            this.batchLookupCache.set(entity, new Set(existingRecords.map((r2) => r2.id)));
+          } catch (error) {
+            console.error(`Failed to prefetch ${entity}:`, error);
+          }
+        }
+      }
+      extractForeignKeys(records) {
+        const foreignKeys = /* @__PURE__ */ new Map();
+        records.forEach((record) => {
+          Object.entries(record.transformedData).forEach(([key, value]) => {
+            if (key.endsWith("_id") || key.endsWith("Id")) {
+              const entity = key.replace(/_?id$/i, "");
+              if (!foreignKeys.has(entity)) {
+                foreignKeys.set(entity, /* @__PURE__ */ new Set());
+              }
+              foreignKeys.get(entity).add(value);
+            }
+          });
+        });
+        return foreignKeys;
+      }
+      async validateRecord(record, db2) {
+        const errors = [];
+        for (const [key, value] of Object.entries(record.transformedData)) {
+          if (key.endsWith("_id") || key.endsWith("Id")) {
+            const entity = key.replace(/_?id$/i, "");
+            const cache = this.batchLookupCache.get(entity);
+            if (cache && !cache.has(value)) {
+              errors.push({
+                field: key,
+                ruleId: "foreign_key",
+                severity: "error",
+                message: `Referenced ${entity} does not exist`,
+                currentValue: value
+              });
+            }
+          }
+        }
+        return { record, errors };
+      }
+      aggregateResults(results) {
+        return {
+          valid: results.filter((r2) => r2.errors.length === 0).map((r2) => r2.record),
+          invalid: results.filter((r2) => r2.errors.some((e) => e.severity === "error")),
+          warnings: results.filter((r2) => r2.errors.length > 0 && r2.errors.every((e) => e.severity === "warning"))
+        };
+      }
+    };
+    DatabaseWriteStage = class {
+      async process(records, config) {
+        const db2 = getDatabase();
+        const batchSize = 500;
+        const batches = this.chunkArray(records, batchSize);
+        const results = {
+          inserted: 0,
+          updated: 0,
+          failed: 0,
+          errors: []
+        };
+        for (const batch of batches) {
+          try {
+            const created = await db2.createMany(config.targetTable, batch.map((r2) => r2.transformedData));
+            results.inserted += created.length;
+          } catch (error) {
+            results.failed += batch.length;
+            results.errors.push({
+              batch: batch.map((r2) => r2.id),
+              error: error.message
+            });
+          }
+        }
+        return results;
+      }
+      chunkArray(array, size) {
+        const chunks = [];
+        for (let i = 0; i < array.length; i += size) {
+          chunks.push(array.slice(i, i + size));
+        }
+        return chunks;
+      }
+    };
+    RecordProcessingOrchestrator = class extends import_events.EventEmitter {
+      constructor(config = {}) {
+        super();
+        this.isPaused = false;
+        this.isHealthy = true;
+        this.config = { ...DEFAULT_CONFIG, ...config };
+        this.metrics = this.initializeMetrics();
+      }
+      async processImportJob(jobId) {
+        this.emit("job:started", { jobId });
+        try {
+          const db2 = getDatabase();
+          const stages = {
+            validation: new FastValidationStage(),
+            transformation: new TransformationStage(),
+            dbValidation: new DatabaseValidationStage(),
+            write: new DatabaseWriteStage()
+          };
+          this.startHealthMonitoring();
+          this.startProgressReporting(jobId);
+          let currentBatchSize = this.config.initialBatchSize;
+          let offset = 0;
+          let hasMoreRecords = true;
+          while (hasMoreRecords && this.isHealthy && !this.isPaused) {
+            const records = await this.fetchStagingRecords(
+              jobId,
+              offset,
+              currentBatchSize
+            );
+            if (records.length === 0) {
+              hasMoreRecords = false;
+              break;
+            }
+            const startTime = Date.now();
+            await this.processBatch(records, stages, jobId);
+            const processingTime = Date.now() - startTime;
+            this.updateMetrics(records.length, processingTime);
+            currentBatchSize = this.adjustBatchSize(currentBatchSize, processingTime);
+            offset += records.length;
+            if (this.config.pauseBetweenBatchesMs > 0) {
+              await this.sleep(this.config.pauseBetweenBatchesMs);
+            }
+            if (this.shouldPauseOnErrors()) {
+              this.isPaused = true;
+              this.emit("job:paused", {
+                jobId,
+                reason: "Error threshold exceeded",
+                errorRate: this.metrics.errorRate
+              });
+              break;
+            }
+          }
+          return this.finalizeJob(jobId);
+        } catch (error) {
+          this.emit("job:failed", { jobId, error: error.message });
+          throw error;
+        } finally {
+          this.stopMonitoring();
+        }
+      }
+      async processBatch(records, stages, jobId) {
+        const startTime = Date.now();
+        try {
+          const validationResult = await stages.validation.process(records);
+          this.emit("batch:validated", {
+            valid: validationResult.valid.length,
+            invalid: validationResult.invalid.length
+          });
+          if (validationResult.valid.length === 0) {
+            await this.handleInvalidRecords(validationResult.invalid, jobId);
+            return;
+          }
+          const transformedRecords = await stages.transformation.process(
+            validationResult.valid,
+            await this.getJobConfig(jobId)
+          );
+          this.emit("batch:transformed", { count: transformedRecords.length });
+          const dbValidationResult = await stages.dbValidation.process(transformedRecords);
+          if (dbValidationResult.valid.length === 0) {
+            await this.handleInvalidRecords(dbValidationResult.invalid, jobId);
+            return;
+          }
+          const writeResult = await stages.write.process(
+            dbValidationResult.valid,
+            await this.getJobConfig(jobId)
+          );
+          this.emit("batch:written", writeResult);
+          await this.updateStagingRecordsStatus(records, writeResult);
+          this.metrics.totalProcessed += records.length;
+          this.metrics.successfulRecords += writeResult.inserted + writeResult.updated;
+          this.metrics.failedRecords += writeResult.failed;
+        } catch (error) {
+          this.emit("batch:error", { error: error.message });
+          this.metrics.batchErrors++;
+          throw error;
+        }
+        const processingTime = Date.now() - startTime;
+        this.metrics.averageProcessingTimeMs = (this.metrics.averageProcessingTimeMs * this.metrics.batchesProcessed + processingTime) / (this.metrics.batchesProcessed + 1);
+        this.metrics.batchesProcessed++;
+      }
+      adjustBatchSize(currentSize, processingTimeMs) {
+        const targetProcessingTime = 5e3;
+        if (processingTimeMs < targetProcessingTime * 0.5) {
+          return Math.min(currentSize * 1.5, this.config.maxBatchSize);
+        } else if (processingTimeMs > targetProcessingTime * 1.5) {
+          return Math.max(currentSize * 0.7, this.config.minBatchSize);
+        }
+        return currentSize;
+      }
+      shouldPauseOnErrors() {
+        return this.metrics.errorRate > this.config.errorThresholdPercent;
+      }
+      startHealthMonitoring() {
+        this.healthCheckInterval = setInterval(() => {
+          const memoryUsage = process.memoryUsage();
+          const heapUsedMB = memoryUsage.heapUsed / 1024 / 1024;
+          if (heapUsedMB > this.config.memoryThresholdMB) {
+            this.isHealthy = false;
+            this.emit("health:warning", {
+              reason: "Memory threshold exceeded",
+              heapUsedMB
+            });
+          }
+        }, this.config.healthCheckIntervalMs);
+      }
+      startProgressReporting(jobId) {
+        this.progressInterval = setInterval(() => {
+          this.emit("progress:update", {
+            jobId,
+            metrics: this.metrics,
+            timestamp: /* @__PURE__ */ new Date()
+          });
+        }, this.config.progressReportIntervalMs);
+      }
+      stopMonitoring() {
+        if (this.healthCheckInterval) clearInterval(this.healthCheckInterval);
+        if (this.progressInterval) clearInterval(this.progressInterval);
+      }
+      async fetchStagingRecords(jobId, offset, limit2) {
+        const db2 = getDatabase();
+        try {
+          const records = await db2.findMany("stagingRecords", {
+            filters: [
+              { field: "importJobId", operator: "==", value: jobId },
+              { field: "processingStatus", operator: "==", value: "pending" }
+            ],
+            orderBy: "rowNumber",
+            orderDirection: "asc",
+            limit: limit2,
+            offset
+          });
+          return records;
+        } catch (error) {
+          console.error("Failed to fetch staging records:", error);
+          return [];
+        }
+      }
+      initializeMetrics() {
+        return {
+          totalProcessed: 0,
+          successfulRecords: 0,
+          failedRecords: 0,
+          batchesProcessed: 0,
+          batchErrors: 0,
+          averageProcessingTimeMs: 0,
+          errorRate: 0,
+          throughputRecordsPerSecond: 0,
+          startTime: /* @__PURE__ */ new Date()
+        };
+      }
+      updateMetrics(recordCount, processingTimeMs) {
+        const throughput = recordCount / processingTimeMs * 1e3;
+        this.metrics.throughputRecordsPerSecond = (this.metrics.throughputRecordsPerSecond * this.metrics.batchesProcessed + throughput) / (this.metrics.batchesProcessed + 1);
+        this.metrics.errorRate = this.metrics.failedRecords / Math.max(this.metrics.totalProcessed, 1) * 100;
+      }
+      async finalizeJob(jobId) {
+        this.emit("job:completed", {
+          jobId,
+          metrics: this.metrics
+        });
+        return {
+          jobId,
+          status: "completed",
+          metrics: this.metrics,
+          duration: Date.now() - this.metrics.startTime.getTime()
+        };
+      }
+      sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+      async getJobConfig(jobId) {
+        const db2 = getDatabase();
+        try {
+          const job = await db2.findOne("dataImportJobs", jobId);
+          return job.configuration;
+        } catch (error) {
+          console.error("Failed to get job config:", error);
+          throw error;
+        }
+      }
+      async handleInvalidRecords(invalid, jobId) {
+        const db2 = getDatabase();
+        const ids = invalid.map((r2) => r2.record?.id || r2.id);
+        await db2.updateMany("stagingRecords", ids, {
+          processingStatus: "failed",
+          validationStatus: "invalid"
+        });
+      }
+      async updateStagingRecordsStatus(records, writeResult) {
+        const db2 = getDatabase();
+        const successIds = records.map((r2) => r2.id);
+        await db2.updateMany("stagingRecords", successIds, {
+          processingStatus: "processed"
+        });
+      }
+    };
+  }
+});
+
+// src/services/search/opensearch-service.ts
+var import_opensearch, OpenSearchService, openSearchService;
+var init_opensearch_service = __esm({
+  "src/services/search/opensearch-service.ts"() {
+    "use strict";
+    import_opensearch = require("@opensearch-project/opensearch");
+    init_redis_cache_service();
+    OpenSearchService = class {
+      constructor() {
+        this.client = null;
+        this.isConnected = false;
+        this.indexes = ["povs", "trrs", "users", "projects"];
+      }
+      /**
+       * Connect to OpenSearch cluster
+       */
+      async connect() {
+        try {
+          const node = process.env.OPENSEARCH_URL || "http://localhost:9200";
+          const username = process.env.OPENSEARCH_USERNAME || "";
+          const password = process.env.OPENSEARCH_PASSWORD || "";
+          this.client = new import_opensearch.Client({
+            node,
+            ...username && password ? {
+              auth: {
+                username,
+                password
+              }
+            } : {},
+            ssl: {
+              rejectUnauthorized: process.env.NODE_ENV === "production"
+            }
+          });
+          const health = await this.client.cluster.health({});
+          console.log("[OpenSearch] Connected successfully. Status:", health.body.status);
+          this.isConnected = true;
+          await this.createIndexes();
+        } catch (error) {
+          console.error("[OpenSearch] Connection failed:", error);
+          this.isConnected = false;
+        }
+      }
+      /**
+       * Disconnect from OpenSearch
+       */
+      async disconnect() {
+        if (this.client) {
+          await this.client.close();
+          this.isConnected = false;
+          console.log("[OpenSearch] Disconnected");
+        }
+      }
+      /**
+       * Check if connected to OpenSearch
+       */
+      isReady() {
+        return this.isConnected && this.client !== null;
+      }
+      /**
+       * Create indexes with optimized settings
+       */
+      async createIndexes() {
+        if (!this.client) return;
+        for (const index of this.indexes) {
+          try {
+            const { body: exists } = await this.client.indices.exists({ index });
+            if (!exists) {
+              await this.client.indices.create({
+                index,
+                body: {
+                  settings: {
+                    number_of_shards: 1,
+                    number_of_replicas: process.env.NODE_ENV === "production" ? 1 : 0,
+                    max_result_window: 1e4,
+                    analysis: {
+                      analyzer: {
+                        autocomplete: {
+                          type: "custom",
+                          tokenizer: "standard",
+                          filter: ["lowercase", "autocomplete_filter"]
+                        },
+                        autocomplete_search: {
+                          type: "custom",
+                          tokenizer: "standard",
+                          filter: ["lowercase"]
+                        }
+                      },
+                      filter: {
+                        autocomplete_filter: {
+                          type: "edge_ngram",
+                          min_gram: 2,
+                          max_gram: 20
+                        }
+                      }
+                    }
+                  },
+                  mappings: {
+                    properties: {
+                      // Common fields
+                      title: {
+                        type: "text",
+                        analyzer: "autocomplete",
+                        search_analyzer: "autocomplete_search",
+                        fields: {
+                          keyword: { type: "keyword" },
+                          raw: { type: "text", analyzer: "standard" }
+                        }
+                      },
+                      description: {
+                        type: "text",
+                        analyzer: "standard"
+                      },
+                      status: {
+                        type: "keyword"
+                      },
+                      owner: {
+                        type: "keyword"
+                      },
+                      createdBy: {
+                        type: "keyword"
+                      },
+                      createdAt: {
+                        type: "date"
+                      },
+                      updatedAt: {
+                        type: "date"
+                      },
+                      // User-specific fields
+                      email: {
+                        type: "text",
+                        fields: {
+                          keyword: { type: "keyword" }
+                        }
+                      },
+                      displayName: {
+                        type: "text",
+                        analyzer: "autocomplete",
+                        search_analyzer: "autocomplete_search"
+                      },
+                      role: {
+                        type: "keyword"
+                      },
+                      // POV/TRR specific fields
+                      customer: {
+                        type: "text",
+                        fields: {
+                          keyword: { type: "keyword" }
+                        }
+                      },
+                      industry: {
+                        type: "keyword"
+                      },
+                      priority: {
+                        type: "keyword"
+                      },
+                      // Flexible metadata field
+                      metadata: {
+                        type: "object",
+                        enabled: true
+                      }
+                    }
+                  }
+                }
+              });
+              console.log(`[OpenSearch] Created index: ${index}`);
+            }
+          } catch (error) {
+            console.error(`[OpenSearch] Error creating index ${index}:`, error);
+          }
+        }
+      }
+      /**
+       * Index a single document
+       */
+      async indexDocument(type, id, document) {
+        if (!this.isReady()) return;
+        try {
+          await this.client.index({
+            index: type,
+            id,
+            body: document,
+            refresh: true
+          });
+          await redisCacheService.invalidate(`search:*`);
+          console.log(`[OpenSearch] Indexed document: ${type}/${id}`);
+        } catch (error) {
+          console.error(`[OpenSearch] Error indexing document:`, error);
+        }
+      }
+      /**
+       * Bulk index multiple documents (optimized for large datasets)
+       */
+      async bulkIndex(type, documents) {
+        if (!this.isReady() || documents.length === 0) return;
+        try {
+          const body = documents.flatMap(({ id, doc: doc3 }) => [
+            { index: { _index: type, _id: id } },
+            doc3
+          ]);
+          const response = await this.client.bulk({
+            body,
+            refresh: true
+          });
+          if (response.body.errors) {
+            const errors = response.body.items.filter((item) => item.index?.error).map((item) => item.index.error);
+            console.error(`[OpenSearch] Bulk indexing errors:`, errors);
+          } else {
+            console.log(`[OpenSearch] Bulk indexed ${documents.length} documents in ${type}`);
+          }
+          await redisCacheService.invalidate(`search:*`);
+        } catch (error) {
+          console.error(`[OpenSearch] Error bulk indexing:`, error);
+        }
+      }
+      /**
+       * Search across indexes with advanced features
+       */
+      async search(options) {
+        if (!this.isReady()) {
+          console.warn("[OpenSearch] Service not ready, returning empty results");
+          return [];
+        }
+        try {
+          const {
+            query: query4,
+            types = [],
+            limit: limit2 = 10,
+            offset = 0,
+            filters = {}
+          } = options;
+          const cacheKey = `search:${query4}:${types.join(",")}:${limit2}:${offset}`;
+          const cached = await redisCacheService.get(cacheKey);
+          if (cached) {
+            return cached;
+          }
+          const must = [];
+          const should = [
+            // Multi-match across key fields with boosting
+            {
+              multi_match: {
+                query: query4,
+                fields: [
+                  "title^3",
+                  // Boost title matches
+                  "displayName^3",
+                  // Boost name matches
+                  "email^2",
+                  // Email matches
+                  "description^2",
+                  // Description matches
+                  "customer^2",
+                  // Customer name matches
+                  "metadata.*"
+                  // Metadata fields
+                ],
+                type: "best_fields",
+                fuzziness: "AUTO",
+                prefix_length: 2
+              }
+            },
+            // Phrase prefix for autocomplete
+            {
+              match_phrase_prefix: {
+                title: {
+                  query: query4,
+                  boost: 2
+                }
+              }
+            },
+            // Exact match boost
+            {
+              term: {
+                "title.keyword": {
+                  value: query4,
+                  boost: 5
+                }
+              }
+            }
+          ];
+          Object.entries(filters).forEach(([field, value]) => {
+            must.push({
+              term: { [field]: value }
+            });
+          });
+          const searchBody = {
+            query: {
+              bool: {
+                must,
+                should,
+                minimum_should_match: must.length === 0 ? 1 : 0
+              }
+            },
+            from: offset,
+            size: limit2,
+            highlight: {
+              fields: {
+                title: {},
+                description: {},
+                displayName: {},
+                customer: {}
+              },
+              pre_tags: ["<mark>"],
+              post_tags: ["</mark>"]
+            },
+            // Sort by relevance, then by date
+            sort: [
+              "_score",
+              { createdAt: { order: "desc" } }
+            ]
+          };
+          const indexes = types.length > 0 ? types.join(",") : this.indexes.join(",");
+          const { body } = await this.client.search({
+            index: indexes,
+            body: searchBody
+          });
+          const results = body.hits.hits.map((hit) => ({
+            id: hit._id,
+            type: hit._index,
+            title: hit._source.title || hit._source.displayName || hit._source.name || "Untitled",
+            description: hit._source.description,
+            metadata: {
+              status: hit._source.status,
+              createdAt: hit._source.createdAt,
+              owner: hit._source.owner || hit._source.createdBy,
+              customer: hit._source.customer,
+              industry: hit._source.industry,
+              priority: hit._source.priority,
+              role: hit._source.role,
+              email: hit._source.email
+            },
+            score: hit._score,
+            highlight: hit.highlight
+          }));
+          await redisCacheService.set(cacheKey, results, { ttl: 120 });
+          return results;
+        } catch (error) {
+          console.error("[OpenSearch] Search error:", error);
+          return [];
+        }
+      }
+      /**
+       * Update an existing document
+       */
+      async updateDocument(type, id, doc3) {
+        if (!this.isReady()) return;
+        try {
+          await this.client.update({
+            index: type,
+            id,
+            body: {
+              doc: doc3
+            },
+            refresh: true
+          });
+          await redisCacheService.invalidate(`search:*`);
+          console.log(`[OpenSearch] Updated document: ${type}/${id}`);
+        } catch (error) {
+          console.error(`[OpenSearch] Error updating document:`, error);
+        }
+      }
+      /**
+       * Delete a document from the index
+       */
+      async deleteDocument(type, id) {
+        if (!this.isReady()) return;
+        try {
+          await this.client.delete({
+            index: type,
+            id,
+            refresh: true
+          });
+          await redisCacheService.invalidate(`search:*`);
+          console.log(`[OpenSearch] Deleted document: ${type}/${id}`);
+        } catch (error) {
+          if (error.meta?.statusCode === 404) {
+            console.warn(`[OpenSearch] Document not found: ${type}/${id}`);
+          } else {
+            console.error(`[OpenSearch] Error deleting document:`, error);
+          }
+        }
+      }
+      /**
+       * Get suggestions for autocomplete
+       */
+      async getSuggestions(query4, type, limit2 = 5) {
+        if (!this.isReady() || query4.length < 2) return [];
+        try {
+          const indexes = type ? type : this.indexes.join(",");
+          const { body } = await this.client.search({
+            index: indexes,
+            body: {
+              suggest: {
+                text: query4,
+                completion: {
+                  field: "title.keyword",
+                  size: limit2,
+                  skip_duplicates: true
+                }
+              }
+            }
+          });
+          const options = body.suggest?.completion?.[0]?.options;
+          if (Array.isArray(options)) {
+            return options.map((opt) => opt.text);
+          }
+          return [];
+        } catch (error) {
+          console.error("[OpenSearch] Error getting suggestions:", error);
+          return [];
+        }
+      }
+      /**
+       * Get index statistics
+       */
+      async getIndexStats(type) {
+        if (!this.isReady()) return null;
+        try {
+          const { body } = await this.client.count({ index: type });
+          const totalDocuments = body.count;
+          const { body: stats } = await this.client.indices.stats({ index: type });
+          const indexSize = stats.indices?.[type]?.total?.store?.size_in_bytes || 0;
+          return {
+            totalDocuments,
+            indexSize: this.formatBytes(indexSize),
+            lastIndexed: /* @__PURE__ */ new Date()
+          };
+        } catch (error) {
+          console.error(`[OpenSearch] Error getting stats for ${type}:`, error);
+          return null;
+        }
+      }
+      /**
+       * Reindex all documents from database (useful for initial setup)
+       */
+      async reindexAll() {
+        if (!this.isReady()) {
+          throw new Error("OpenSearch not connected");
+        }
+        console.log("[OpenSearch] Starting full reindex...");
+        console.log("[OpenSearch] Reindex completed");
+      }
+      /**
+       * Delete an entire index
+       */
+      async deleteIndex(type) {
+        if (!this.isReady()) return;
+        try {
+          await this.client.indices.delete({ index: type });
+          console.log(`[OpenSearch] Deleted index: ${type}`);
+        } catch (error) {
+          console.error(`[OpenSearch] Error deleting index ${type}:`, error);
+        }
+      }
+      /**
+       * Format bytes to human-readable size
+       */
+      formatBytes(bytes) {
+        if (bytes === 0) return "0 Bytes";
+        const k = 1024;
+        const sizes = ["Bytes", "KB", "MB", "GB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
+      }
+    };
+    openSearchService = new OpenSearchService();
+  }
+});
+
+// src/services/search/memgraph-service.ts
+var import_neo4j_driver, MemgraphService, memgraphService;
+var init_memgraph_service = __esm({
+  "src/services/search/memgraph-service.ts"() {
+    "use strict";
+    import_neo4j_driver = __toESM(require("neo4j-driver"));
+    MemgraphService = class {
+      constructor() {
+        this.driver = null;
+        this.isConnected = false;
+      }
+      /**
+       * Connect to Memgraph database
+       */
+      async connect() {
+        try {
+          const uri = process.env.MEMGRAPH_URI || "bolt://localhost:7687";
+          const user = process.env.MEMGRAPH_USER || "";
+          const password = process.env.MEMGRAPH_PASSWORD || "";
+          this.driver = import_neo4j_driver.default.driver(
+            uri,
+            user && password ? import_neo4j_driver.default.auth.basic(user, password) : {}
+          );
+          await this.driver.verifyConnectivity();
+          this.isConnected = true;
+          console.log("[Memgraph] Connected successfully");
+          await this.createConstraintsAndIndexes();
+        } catch (error) {
+          console.error("[Memgraph] Connection failed:", error);
+          this.isConnected = false;
+        }
+      }
+      /**
+       * Disconnect from Memgraph
+       */
+      async disconnect() {
+        if (this.driver) {
+          await this.driver.close();
+          this.isConnected = false;
+          console.log("[Memgraph] Disconnected");
+        }
+      }
+      /**
+       * Check if connected to Memgraph
+       */
+      isReady() {
+        return this.isConnected && this.driver !== null;
+      }
+      /**
+       * Get a database session
+       */
+      getSession() {
+        if (!this.driver) {
+          throw new Error("Memgraph driver not initialized");
+        }
+        return this.driver.session();
+      }
+      /**
+       * Create database constraints and indexes
+       */
+      async createConstraintsAndIndexes() {
+        const session = this.getSession();
+        try {
+          const indexQueries = [
+            "CREATE INDEX ON :User(id);",
+            "CREATE INDEX ON :POV(id);",
+            "CREATE INDEX ON :TRR(id);",
+            "CREATE INDEX ON :Project(id);",
+            "CREATE INDEX ON :User(id);"
+          ];
+          for (const query4 of indexQueries) {
+            try {
+              await session.run(query4);
+            } catch (error) {
+              if (!error.message.includes("already exists")) {
+                console.warn(`[Memgraph] Index creation warning:`, error.message);
+              }
+            }
+          }
+          console.log("[Memgraph] Constraints and indexes created");
+        } catch (error) {
+          console.error("[Memgraph] Error creating constraints:", error);
+        } finally {
+          await session.close();
+        }
+      }
+      /**
+       * Track a user interaction
+       */
+      async trackInteraction(interaction) {
+        if (!this.isReady()) {
+          console.warn("[Memgraph] Service not ready, skipping interaction tracking");
+          return;
+        }
+        const session = this.getSession();
+        try {
+          const { userId, action, entityType, entityId, metadata = {}, timestamp } = interaction;
+          const query4 = `
+        MERGE (u:User {id: $userId})
+        MERGE (e:${entityType} {id: $entityId})
+        CREATE (u)-[r:${action.toUpperCase().replace(/-/g, "_")} {
+          timestamp: datetime($timestamp),
+          metadata: $metadata
+        }]->(e)
+        RETURN u, e, r
+      `;
+          await session.run(query4, {
+            userId,
+            entityId,
+            timestamp: (timestamp || /* @__PURE__ */ new Date()).toISOString(),
+            metadata: JSON.stringify(metadata)
+          });
+          console.log(`[Memgraph] Tracked interaction: ${userId} -[${action}]-> ${entityType}:${entityId}`);
+        } catch (error) {
+          console.error("[Memgraph] Error tracking interaction:", error);
+        } finally {
+          await session.close();
+        }
+      }
+      /**
+       * Get personalized recommendations for a user
+       * Uses collaborative filtering based on similar users' interactions
+       */
+      async getRecommendations(userId, limit2 = 10) {
+        if (!this.isReady()) return [];
+        const session = this.getSession();
+        try {
+          const query4 = `
+        MATCH (u:User {id: $userId})-[r1]->(e)
+        MATCH (similar:User)-[r2]->(e)
+        WHERE u <> similar
+
+        WITH similar,
+             COUNT(DISTINCT e) AS commonInterests,
+             COUNT(r2) AS totalInteractions
+        ORDER BY commonInterests DESC, totalInteractions DESC
+        LIMIT 20
+
+        MATCH (similar)-[r]->(recommended)
+        WHERE NOT (u)-[]->(recommended)
+          AND type(r) IN ['VIEW', 'CLICK', 'SEARCH_CLICK']
+
+        WITH recommended,
+             labels(recommended)[0] AS entityType,
+             type(r) AS interactionType,
+             COUNT(DISTINCT similar) AS userCount,
+             COUNT(r) AS interactionCount,
+             MAX(commonInterests) AS maxCommonInterests
+
+        WITH recommended,
+             entityType,
+             userCount,
+             interactionCount,
+             maxCommonInterests,
+             (userCount * 1.0 / 20.0) * (interactionCount * 1.0 / (userCount * 1.0)) * maxCommonInterests AS score,
+             (userCount * 1.0 / 20.0) AS confidence
+
+        RETURN
+          recommended.id AS entityId,
+          entityType,
+          score,
+          confidence,
+          'Users similar to you also viewed this' AS reason,
+          userCount,
+          interactionCount
+        ORDER BY score DESC
+        LIMIT $limit
+      `;
+          const result = await session.run(query4, { userId, limit: limit2 });
+          return result.records.map((record) => ({
+            entityId: record.get("entityId"),
+            entityType: record.get("entityType"),
+            score: record.get("score"),
+            confidence: Math.min(record.get("confidence"), 1),
+            reason: `${record.get("userCount")} similar users interacted with this ${record.get("interactionCount")} times`
+          }));
+        } catch (error) {
+          console.error("[Memgraph] Error getting recommendations:", error);
+          return [];
+        } finally {
+          await session.close();
+        }
+      }
+      /**
+       * Get trending entities based on recent interactions
+       */
+      async getTrending(entityType, days = 7, limit2 = 10) {
+        if (!this.isReady()) return [];
+        const session = this.getSession();
+        try {
+          const typeFilter = entityType ? `:${entityType}` : "";
+          const query4 = `
+        MATCH (u:User)-[r]->(e${typeFilter})
+        WHERE r.timestamp > datetime() - duration({days: $days})
+
+        WITH e,
+             labels(e)[0] AS entityType,
+             COUNT(r) AS interactionCount,
+             COUNT(DISTINCT u) AS uniqueUsers
+
+        WITH e,
+             entityType,
+             interactionCount,
+             uniqueUsers,
+             (interactionCount * 1.0 * uniqueUsers * 1.0) / $days AS trendScore
+
+        RETURN
+          e.id AS entityId,
+          entityType,
+          interactionCount,
+          uniqueUsers,
+          trendScore
+        ORDER BY trendScore DESC
+        LIMIT $limit
+      `;
+          const result = await session.run(query4, { days, limit: limit2 });
+          return result.records.map((record) => ({
+            entityId: record.get("entityId"),
+            entityType: record.get("entityType"),
+            interactionCount: record.get("interactionCount").toNumber(),
+            uniqueUsers: record.get("uniqueUsers").toNumber(),
+            trendScore: record.get("trendScore")
+          }));
+        } catch (error) {
+          console.error("[Memgraph] Error getting trending:", error);
+          return [];
+        } finally {
+          await session.close();
+        }
+      }
+      /**
+       * Get user's interaction history
+       */
+      async getUserInteractions(userId, limit2 = 50) {
+        if (!this.isReady()) return [];
+        const session = this.getSession();
+        try {
+          const query4 = `
+        MATCH (u:User {id: $userId})-[r]->(e)
+        RETURN
+          type(r) AS action,
+          labels(e)[0] AS entityType,
+          e.id AS entityId,
+          r.timestamp AS timestamp,
+          r.metadata AS metadata
+        ORDER BY r.timestamp DESC
+        LIMIT $limit
+      `;
+          const result = await session.run(query4, { userId, limit: limit2 });
+          return result.records.map((record) => ({
+            action: record.get("action"),
+            entityType: record.get("entityType"),
+            entityId: record.get("entityId"),
+            timestamp: record.get("timestamp"),
+            metadata: this.parseJSON(record.get("metadata"))
+          }));
+        } catch (error) {
+          console.error("[Memgraph] Error getting user interactions:", error);
+          return [];
+        } finally {
+          await session.close();
+        }
+      }
+      /**
+       * Find similar users based on interaction patterns
+       */
+      async findSimilarUsers(userId, limit2 = 10) {
+        if (!this.isReady()) return [];
+        const session = this.getSession();
+        try {
+          const query4 = `
+        MATCH (u:User {id: $userId})-[r1]->(e)
+        MATCH (similar:User)-[r2]->(e)
+        WHERE u <> similar
+
+        WITH similar,
+             COUNT(DISTINCT e) AS commonInterests,
+             COUNT(r1) AS userInteractions,
+             COUNT(r2) AS similarInteractions
+
+        WITH similar,
+             commonInterests,
+             commonInterests * 1.0 / (userInteractions + similarInteractions - commonInterests) AS jaccardSimilarity
+
+        RETURN
+          similar.id AS userId,
+          jaccardSimilarity AS similarityScore,
+          commonInterests
+        ORDER BY similarityScore DESC
+        LIMIT $limit
+      `;
+          const result = await session.run(query4, { userId, limit: limit2 });
+          return result.records.map((record) => ({
+            userId: record.get("userId"),
+            similarityScore: record.get("similarityScore"),
+            commonInterests: record.get("commonInterests").toNumber()
+          }));
+        } catch (error) {
+          console.error("[Memgraph] Error finding similar users:", error);
+          return [];
+        } finally {
+          await session.close();
+        }
+      }
+      /**
+       * Get interaction statistics
+       */
+      async getInteractionStats() {
+        if (!this.isReady()) return null;
+        const session = this.getSession();
+        try {
+          const totalQuery = "MATCH ()-[r]->() RETURN COUNT(r) AS total";
+          const totalResult = await session.run(totalQuery);
+          const totalInteractions = totalResult.records[0].get("total").toNumber();
+          const uniqueQuery = `
+        MATCH (u:User)-[r]->(e)
+        RETURN
+          COUNT(DISTINCT u) AS uniqueUsers,
+          COUNT(DISTINCT e) AS uniqueEntities
+      `;
+          const uniqueResult = await session.run(uniqueQuery);
+          const uniqueUsers = uniqueResult.records[0].get("uniqueUsers").toNumber();
+          const uniqueEntities = uniqueResult.records[0].get("uniqueEntities").toNumber();
+          const actionsQuery = `
+        MATCH ()-[r]->()
+        RETURN type(r) AS action, COUNT(r) AS count
+        ORDER BY count DESC
+        LIMIT 10
+      `;
+          const actionsResult = await session.run(actionsQuery);
+          const topActions = actionsResult.records.map((record) => ({
+            action: record.get("action"),
+            count: record.get("count").toNumber()
+          }));
+          const activityQuery = `
+        MATCH ()-[r]->()
+        WHERE r.timestamp > datetime() - duration({days: 30})
+        WITH date(r.timestamp) AS day, COUNT(r) AS count
+        RETURN toString(day) AS date, count
+        ORDER BY day
+      `;
+          const activityResult = await session.run(activityQuery);
+          const activityByDay = activityResult.records.map((record) => ({
+            date: record.get("date"),
+            count: record.get("count").toNumber()
+          }));
+          return {
+            totalInteractions,
+            uniqueUsers,
+            uniqueEntities,
+            topActions,
+            activityByDay
+          };
+        } catch (error) {
+          console.error("[Memgraph] Error getting stats:", error);
+          return null;
+        } finally {
+          await session.close();
+        }
+      }
+      /**
+       * Delete all user interactions (for privacy/GDPR compliance)
+       */
+      async deleteUserData(userId) {
+        if (!this.isReady()) return;
+        const session = this.getSession();
+        try {
+          const query4 = `
+        MATCH (u:User {id: $userId})-[r]-()
+        DELETE r
+        WITH u
+        DELETE u
+      `;
+          await session.run(query4, { userId });
+          console.log(`[Memgraph] Deleted all data for user: ${userId}`);
+        } catch (error) {
+          console.error("[Memgraph] Error deleting user data:", error);
+        } finally {
+          await session.close();
+        }
+      }
+      /**
+       * Clear all data (use with caution!)
+       */
+      async clearAllData() {
+        if (!this.isReady()) return;
+        const session = this.getSession();
+        try {
+          await session.run("MATCH (n) DETACH DELETE n");
+          console.log("[Memgraph] Cleared all data");
+        } catch (error) {
+          console.error("[Memgraph] Error clearing data:", error);
+        } finally {
+          await session.close();
+        }
+      }
+      /**
+       * Parse JSON string safely
+       */
+      parseJSON(jsonString) {
+        try {
+          return JSON.parse(jsonString || "{}");
+        } catch {
+          return {};
+        }
+      }
+    };
+    memgraphService = new MemgraphService();
+  }
+});
+
 // src/services/index.ts
 var init_services = __esm({
   "src/services/index.ts"() {
@@ -6965,6 +8887,11 @@ var init_services = __esm({
     init_relationship_management_service();
     init_dynamic_record_service();
     init_terraform_generation_service();
+    init_event_tracking_service();
+    init_redis_cache_service();
+    init_record_processing_orchestrator();
+    init_opensearch_service();
+    init_memgraph_service();
   }
 });
 
@@ -7043,22 +8970,265 @@ var init_chat = __esm({
   }
 });
 
+// src/types/auth.ts
+var import_zod2, UserRole, UserStatus, UserProfileSchema, TeamSchema, ROLE_PERMISSIONS2;
+var init_auth2 = __esm({
+  "src/types/auth.ts"() {
+    "use strict";
+    import_zod2 = require("zod");
+    UserRole = /* @__PURE__ */ ((UserRole2) => {
+      UserRole2["USER"] = "user";
+      UserRole2["MANAGER"] = "manager";
+      UserRole2["ADMIN"] = "admin";
+      return UserRole2;
+    })(UserRole || {});
+    UserStatus = /* @__PURE__ */ ((UserStatus2) => {
+      UserStatus2["ACTIVE"] = "active";
+      UserStatus2["INACTIVE"] = "inactive";
+      UserStatus2["PENDING"] = "pending";
+      UserStatus2["SUSPENDED"] = "suspended";
+      return UserStatus2;
+    })(UserStatus || {});
+    UserProfileSchema = import_zod2.z.object({
+      uid: import_zod2.z.string(),
+      email: import_zod2.z.string().email(),
+      displayName: import_zod2.z.string(),
+      role: import_zod2.z.nativeEnum(UserRole),
+      status: import_zod2.z.nativeEnum(UserStatus),
+      department: import_zod2.z.string().optional(),
+      title: import_zod2.z.string().optional(),
+      manager: import_zod2.z.string().optional(),
+      // uid of manager
+      teams: import_zod2.z.array(import_zod2.z.string()).default([]),
+      // team IDs
+      preferences: import_zod2.z.object({
+        theme: import_zod2.z.enum(["light", "dark", "system"]).default("system"),
+        notifications: import_zod2.z.object({
+          email: import_zod2.z.boolean().default(true),
+          inApp: import_zod2.z.boolean().default(true),
+          desktop: import_zod2.z.boolean().default(false)
+        }).default({}),
+        dashboard: import_zod2.z.object({
+          layout: import_zod2.z.enum(["grid", "list"]).default("grid"),
+          defaultView: import_zod2.z.string().optional()
+        }).default({})
+      }).default({}),
+      permissions: import_zod2.z.object({
+        povManagement: import_zod2.z.object({
+          create: import_zod2.z.boolean().default(true),
+          edit: import_zod2.z.boolean().default(true),
+          delete: import_zod2.z.boolean().default(false),
+          viewAll: import_zod2.z.boolean().default(false)
+        }).default({}),
+        trrManagement: import_zod2.z.object({
+          create: import_zod2.z.boolean().default(true),
+          edit: import_zod2.z.boolean().default(true),
+          delete: import_zod2.z.boolean().default(false),
+          approve: import_zod2.z.boolean().default(false),
+          viewAll: import_zod2.z.boolean().default(false)
+        }).default({}),
+        contentHub: import_zod2.z.object({
+          create: import_zod2.z.boolean().default(true),
+          edit: import_zod2.z.boolean().default(true),
+          publish: import_zod2.z.boolean().default(false),
+          moderate: import_zod2.z.boolean().default(false)
+        }).default({}),
+        scenarioEngine: import_zod2.z.object({
+          execute: import_zod2.z.boolean().default(true),
+          create: import_zod2.z.boolean().default(false),
+          modify: import_zod2.z.boolean().default(false)
+        }).default({}),
+        terminal: import_zod2.z.object({
+          basic: import_zod2.z.boolean().default(true),
+          advanced: import_zod2.z.boolean().default(false),
+          admin: import_zod2.z.boolean().default(false)
+        }).default({}),
+        analytics: import_zod2.z.object({
+          view: import_zod2.z.boolean().default(true),
+          export: import_zod2.z.boolean().default(false),
+          detailed: import_zod2.z.boolean().default(false)
+        }).default({}),
+        userManagement: import_zod2.z.object({
+          view: import_zod2.z.boolean().default(false),
+          edit: import_zod2.z.boolean().default(false),
+          create: import_zod2.z.boolean().default(false),
+          delete: import_zod2.z.boolean().default(false)
+        }).default({})
+      }),
+      createdAt: import_zod2.z.date(),
+      updatedAt: import_zod2.z.date(),
+      lastLoginAt: import_zod2.z.date().optional()
+    });
+    TeamSchema = import_zod2.z.object({
+      id: import_zod2.z.string(),
+      name: import_zod2.z.string(),
+      description: import_zod2.z.string().optional(),
+      manager: import_zod2.z.string(),
+      // uid of team manager
+      members: import_zod2.z.array(import_zod2.z.string()),
+      // array of user uids
+      region: import_zod2.z.string().optional(),
+      department: import_zod2.z.string().optional(),
+      isActive: import_zod2.z.boolean().default(true),
+      createdAt: import_zod2.z.date(),
+      updatedAt: import_zod2.z.date()
+    });
+    ROLE_PERMISSIONS2 = {
+      ["user" /* USER */]: {
+        povManagement: {
+          create: true,
+          edit: true,
+          delete: false,
+          viewAll: false
+        },
+        trrManagement: {
+          create: true,
+          edit: true,
+          delete: false,
+          approve: false,
+          viewAll: false
+        },
+        contentHub: {
+          create: true,
+          edit: true,
+          publish: false,
+          moderate: false
+        },
+        scenarioEngine: {
+          execute: true,
+          create: false,
+          modify: false
+        },
+        terminal: {
+          basic: true,
+          advanced: false,
+          admin: false
+        },
+        analytics: {
+          view: true,
+          export: false,
+          detailed: false
+        },
+        userManagement: {
+          view: false,
+          edit: false,
+          create: false,
+          delete: false
+        }
+      },
+      ["manager" /* MANAGER */]: {
+        povManagement: {
+          create: true,
+          edit: true,
+          delete: true,
+          viewAll: true
+        },
+        trrManagement: {
+          create: true,
+          edit: true,
+          delete: true,
+          approve: true,
+          viewAll: true
+        },
+        contentHub: {
+          create: true,
+          edit: true,
+          publish: true,
+          moderate: true
+        },
+        scenarioEngine: {
+          execute: true,
+          create: true,
+          modify: true
+        },
+        terminal: {
+          basic: true,
+          advanced: true,
+          admin: false
+        },
+        analytics: {
+          view: true,
+          export: true,
+          detailed: true
+        },
+        userManagement: {
+          view: true,
+          edit: false,
+          create: false,
+          delete: false
+        }
+      },
+      ["admin" /* ADMIN */]: {
+        povManagement: {
+          create: true,
+          edit: true,
+          delete: true,
+          viewAll: true
+        },
+        trrManagement: {
+          create: true,
+          edit: true,
+          delete: true,
+          approve: true,
+          viewAll: true
+        },
+        contentHub: {
+          create: true,
+          edit: true,
+          publish: true,
+          moderate: true
+        },
+        scenarioEngine: {
+          execute: true,
+          create: true,
+          modify: true
+        },
+        terminal: {
+          basic: true,
+          advanced: true,
+          admin: true
+        },
+        analytics: {
+          view: true,
+          export: true,
+          detailed: true
+        },
+        userManagement: {
+          view: true,
+          edit: true,
+          create: true,
+          delete: true
+        }
+      }
+    };
+  }
+});
+
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
   AnalyticsService: () => AnalyticsService,
   CHAT_COLLECTION: () => CHAT_COLLECTION,
+  CacheInvalidationPatterns: () => CacheInvalidationPatterns,
+  CacheKeys: () => CacheKeys,
   ChatValidationRules: () => ChatValidationRules,
+  DEFAULT_CONFIG: () => DEFAULT_CONFIG,
   DatabaseValidationService: () => DatabaseValidationService,
   DynamicRecordService: () => DynamicRecordService,
+  EventTrackingService: () => EventTrackingService,
   FirestoreClient: () => FirestoreClient,
   FirestoreQueries: () => FirestoreQueries,
+  MemgraphService: () => MemgraphService,
+  OpenSearchService: () => OpenSearchService,
   RBACMiddleware: () => RBACMiddleware,
-  ROLE_PERMISSIONS: () => ROLE_PERMISSIONS,
+  ROLE_PERMISSIONS: () => ROLE_PERMISSIONS2,
+  RecordProcessingOrchestrator: () => RecordProcessingOrchestrator,
+  RedisCacheService: () => RedisCacheService,
   RelationshipManagementService: () => RelationshipManagementService,
   TerraformGenerationService: () => TerraformGenerationService,
   USER_COLLECTION: () => USER_COLLECTION,
   UserManagementService: () => UserManagementService,
+  UserRole: () => UserRole,
   UserSchema: () => UserSchema,
   UserValidationRules: () => UserValidationRules,
   analyticsService: () => analyticsService,
@@ -7071,6 +9241,7 @@ __export(index_exports, {
   db: () => db,
   dcContextStore: () => dcContextStore,
   dynamicRecordService: () => dynamicRecordService,
+  eventTrackingService: () => eventTrackingService,
   fetchAnalytics: () => fetchAnalytics,
   fetchBlueprintSummary: () => fetchBlueprintSummary,
   fetchRegionEngagements: () => fetchRegionEngagements,
@@ -7081,9 +9252,13 @@ __export(index_exports, {
   getAuth: () => getAuth2,
   getDatabase: () => getDatabase,
   getFirebaseConfig: () => getFirebaseConfig,
+  getRedisCacheService: () => getRedisCacheService,
   getStorage: () => getStorage2,
   initializeStorage: () => initializeStorage,
   isMockAuthMode: () => isMockAuthMode,
+  memgraphService: () => memgraphService,
+  openSearchService: () => openSearchService,
+  redisCacheService: () => redisCacheService,
   relationshipManagementService: () => relationshipManagementService,
   storage: () => storage,
   terraformGenerationService: () => terraformGenerationService,
@@ -7106,6 +9281,7 @@ var init_index = __esm({
     init_storage_factory();
     init_database_factory();
     init_auth_factory();
+    init_auth2();
   }
 });
 init_index();
@@ -7113,17 +9289,26 @@ init_index();
 0 && (module.exports = {
   AnalyticsService,
   CHAT_COLLECTION,
+  CacheInvalidationPatterns,
+  CacheKeys,
   ChatValidationRules,
+  DEFAULT_CONFIG,
   DatabaseValidationService,
   DynamicRecordService,
+  EventTrackingService,
   FirestoreClient,
   FirestoreQueries,
+  MemgraphService,
+  OpenSearchService,
   RBACMiddleware,
   ROLE_PERMISSIONS,
+  RecordProcessingOrchestrator,
+  RedisCacheService,
   RelationshipManagementService,
   TerraformGenerationService,
   USER_COLLECTION,
   UserManagementService,
+  UserRole,
   UserSchema,
   UserValidationRules,
   analyticsService,
@@ -7136,6 +9321,7 @@ init_index();
   db,
   dcContextStore,
   dynamicRecordService,
+  eventTrackingService,
   fetchAnalytics,
   fetchBlueprintSummary,
   fetchRegionEngagements,
@@ -7146,9 +9332,13 @@ init_index();
   getAuth,
   getDatabase,
   getFirebaseConfig,
+  getRedisCacheService,
   getStorage,
   initializeStorage,
   isMockAuthMode,
+  memgraphService,
+  openSearchService,
+  redisCacheService,
   relationshipManagementService,
   storage,
   terraformGenerationService,

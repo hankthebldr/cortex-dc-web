@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { eventTrackingService } from '@cortex/db';
 import {
   Users, LogIn, Activity, TrendingUp, AlertCircle,
   Calendar, Clock, Monitor, Smartphone, Tablet, Loader2
@@ -48,13 +47,17 @@ export default function AdminAnalyticsPage() {
           break;
       }
 
-      const [loginData, activityData] = await Promise.all([
-        eventTrackingService.getLoginAnalytics(startDate, endDate),
-        eventTrackingService.getRecentActivity(100),
-      ]);
+      const response = await fetch(
+        `/api/admin/analytics?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&activityLimit=100`
+      );
 
-      setAnalytics(loginData);
-      setRecentActivity(activityData);
+      if (!response.ok) {
+        throw new Error('Failed to fetch analytics');
+      }
+
+      const result = await response.json();
+      setAnalytics(result.data.login);
+      setRecentActivity(result.data.activity);
     } catch (error) {
       console.error('Failed to load analytics:', error);
     } finally {

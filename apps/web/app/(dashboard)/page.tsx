@@ -10,6 +10,9 @@ import { AdminDashboard } from '@/components/dashboard/AdminDashboard';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { UserRole } from '@cortex/db';
 
+// Force dynamic rendering - no static generation
+export const dynamic = 'force-dynamic';
+
 /**
  * Main Dashboard Route
  * Renders different dashboard experiences based on user role:

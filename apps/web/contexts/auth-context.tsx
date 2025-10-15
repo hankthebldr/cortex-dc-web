@@ -1,15 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User as AuthUser } from '@/lib/auth';
-import {
-  signInWithEmail as signInWithEmailAuth,
-  signInWithGoogle as signInWithGoogleAuth,
-  signOut as signOutAuth,
-  onAuthChange,
-} from '@/lib/auth';
-import { eventTrackingService } from '@cortex/db';
-import { getBrowserInfo, generateSessionId } from '@cortex/utils';
+import { authClient, User as AuthUser } from '@/lib/auth-client';
+import { getBrowserInfo, generateSessionId } from '@/lib/browser-utils';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -39,14 +32,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSessionId(currentSessionId);
 
     // Subscribe to auth state changes
-    const unsubscribe = onAuthChange(async (firebaseUser) => {
-      setUser(firebaseUser);
-      setIsLoading(false);
+    const unsubscribe = authClient.onAuthStateChange(async (authState) => {
+      setUser(authState.user);
+      setIsLoading(authState.isLoading);
+      setError(authState.error);
 
       // Update session activity if user is authenticated
-      if (firebaseUser && currentSessionId) {
+      if (authState.user && currentSessionId) {
         try {
-          await eventTrackingService.updateSessionActivity(currentSessionId);
+          await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'update', sessionId: currentSessionId }),
+          });
         } catch (err) {
           console.error('Failed to update session activity:', err);
         }
@@ -60,54 +58,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       setIsLoading(true);
-      const user = await signInWithEmailAuth(email, password);
-      setUser(user);
+      const user = await authClient.signInWithEmail(email, password);
 
-      // Track successful login event
+      // Track successful login event (tracking is now handled server-side in /api/auth/login)
       if (user && sessionId) {
-        const browserInfo = getBrowserInfo();
-        await eventTrackingService.logLogin({
-          userId: user.uid,
-          email: user.email || email,
-          loginMethod: 'email',
-          success: true,
-          sessionId,
-          ipAddress: undefined, // Will be set by backend if needed
-          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-          deviceType: browserInfo.deviceType,
-          browser: browserInfo.browser,
-          os: browserInfo.os,
-        });
-
         // Create session
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7); // 7 day session
-        await eventTrackingService.createSession({
-          userId: user.uid,
-          sessionId,
-          ipAddress: undefined,
-          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-          expiresAt,
+        expiresAt.setDate(expiresAt.getDate() + 7);
+        await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'create',
+            userId: user.uid,
+            sessionId,
+            userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+            expiresAt,
+          }),
         });
       }
     } catch (err: any) {
-      // Track failed login event
-      if (sessionId) {
-        const browserInfo = getBrowserInfo();
-        await eventTrackingService.logLogin({
-          userId: 'unknown',
-          email: email,
-          loginMethod: 'email',
-          success: false,
-          failureReason: err.message || 'Authentication failed',
-          sessionId,
-          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-          deviceType: browserInfo.deviceType,
-          browser: browserInfo.browser,
-          os: browserInfo.os,
-        }).catch(console.error);
-      }
-
       setError(err.message || 'Failed to sign in');
       throw err;
     } finally {
@@ -119,54 +89,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       setIsLoading(true);
-      const user = await signInWithGoogleAuth();
-      setUser(user);
-
-      // Track successful login event
-      if (user && sessionId) {
-        const browserInfo = getBrowserInfo();
-        await eventTrackingService.logLogin({
-          userId: user.uid,
-          email: user.email || 'unknown',
-          loginMethod: 'google',
-          success: true,
-          sessionId,
-          ipAddress: undefined,
-          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-          deviceType: browserInfo.deviceType,
-          browser: browserInfo.browser,
-          os: browserInfo.os,
-        });
-
-        // Create session
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7); // 7 day session
-        await eventTrackingService.createSession({
-          userId: user.uid,
-          sessionId,
-          ipAddress: undefined,
-          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-          expiresAt,
-        });
-      }
+      // OAuth flow redirects to backend, then back to app
+      await authClient.signInWithGoogle();
     } catch (err: any) {
-      // Track failed login event
-      if (sessionId) {
-        const browserInfo = getBrowserInfo();
-        await eventTrackingService.logLogin({
-          userId: 'unknown',
-          email: 'unknown',
-          loginMethod: 'google',
-          success: false,
-          failureReason: err.message || 'Authentication failed',
-          sessionId,
-          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-          deviceType: browserInfo.deviceType,
-          browser: browserInfo.browser,
-          os: browserInfo.os,
-        }).catch(console.error);
-      }
-
       setError(err.message || 'Failed to sign in with Google');
       throw err;
     } finally {
@@ -180,12 +105,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // End session before signing out
       if (sessionId) {
-        await eventTrackingService.endSession(sessionId);
+        await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'end', sessionId }),
+        });
         sessionStorage.removeItem('sessionId');
       }
 
-      await signOutAuth();
-      setUser(null);
+      await authClient.signOut();
     } catch (err: any) {
       setError(err.message || 'Failed to sign out');
       throw err;

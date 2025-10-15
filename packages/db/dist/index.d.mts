@@ -4,6 +4,7 @@ import { Firestore, Unsubscribe } from 'firebase/firestore';
 import { FirebaseStorage } from 'firebase/storage';
 import { Functions } from 'firebase/functions';
 import { z } from 'zod';
+import { EventEmitter } from 'events';
 
 declare const isMockAuthMode: boolean;
 declare const useEmulator: boolean;
@@ -990,7 +991,7 @@ declare const dcContextStore: DCContextStore;
  * Validates that database operations are correctly migrated
  * and working across Firebase and self-hosted modes
  */
-interface ValidationResult {
+interface ValidationResult$1 {
     passed: boolean;
     test: string;
     duration: number;
@@ -1001,7 +1002,7 @@ interface ValidationReport {
     overall: 'passed' | 'failed' | 'partial';
     timestamp: Date;
     mode: 'firebase' | 'self-hosted';
-    results: ValidationResult[];
+    results: ValidationResult$1[];
     summary: {
         total: number;
         passed: number;
@@ -2092,6 +2093,550 @@ declare class TerraformGenerationService {
 }
 declare const terraformGenerationService: TerraformGenerationService;
 
+/**
+ * Event Tracking Service
+ * Provides comprehensive event tracking for user actions, logins, and analytics
+ * Supports both Firebase Firestore and PostgreSQL backends
+ */
+interface ActivityLogEvent {
+    userId: string;
+    action: string;
+    entityType?: string;
+    entityId?: string;
+    entityTitle?: string;
+    metadata?: Record<string, any>;
+    sessionId?: string;
+    ipAddress?: string;
+    userAgent?: string;
+}
+interface LoginEventData {
+    userId: string;
+    email: string;
+    loginMethod: 'email' | 'google' | 'okta_saml' | 'okta_oauth';
+    success: boolean;
+    failureReason?: string;
+    sessionId?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    location?: Record<string, any>;
+    deviceType?: 'desktop' | 'mobile' | 'tablet';
+    browser?: string;
+    os?: string;
+}
+interface UserSessionData {
+    userId: string;
+    sessionId: string;
+    ipAddress?: string;
+    userAgent?: string;
+    expiresAt: Date;
+}
+interface LoginAnalytics {
+    totalLogins: number;
+    successfulLogins: number;
+    failedLogins: number;
+    uniqueUsers: number;
+    loginsByMethod: Record<string, number>;
+    loginsByDay: Array<{
+        date: string;
+        count: number;
+    }>;
+    recentLogins: LoginEventData[];
+}
+interface UserActivityAnalytics {
+    userId: string;
+    totalActions: number;
+    actionsByType: Record<string, number>;
+    recentActivity: ActivityLogEvent[];
+    lastActive: Date | null;
+    sessionsCount: number;
+}
+declare class EventTrackingService {
+    /**
+     * Log a user activity event
+     */
+    logActivity(event: ActivityLogEvent): Promise<void>;
+    /**
+     * Log a user login event
+     */
+    logLogin(event: LoginEventData): Promise<void>;
+    /**
+     * Create or update a user session
+     */
+    createSession(session: UserSessionData): Promise<void>;
+    /**
+     * Update session activity
+     */
+    updateSessionActivity(sessionId: string): Promise<void>;
+    /**
+     * End a user session
+     */
+    endSession(sessionId: string): Promise<void>;
+    /**
+     * Get login analytics for a time period (with Redis caching)
+     */
+    getLoginAnalytics(startDate: Date, endDate: Date): Promise<LoginAnalytics>;
+    /**
+     * Get user activity analytics (with Redis caching)
+     */
+    getUserActivityAnalytics(userId: string): Promise<UserActivityAnalytics>;
+    /**
+     * Get recent activity logs for admin dashboard
+     */
+    getRecentActivity(limit?: number): Promise<ActivityLogEvent[]>;
+    /**
+     * Get active user sessions
+     */
+    getActiveSessions(userId?: string): Promise<any[]>;
+    /**
+     * Clean up expired sessions
+     */
+    cleanupExpiredSessions(): Promise<void>;
+}
+declare const eventTrackingService: EventTrackingService;
+
+/**
+ * Redis Cache Service
+ * High-performance caching layer for database queries and analytics
+ * Optimized for dynamic cloud applications with automatic cache invalidation
+ */
+interface CacheOptions {
+    ttl?: number;
+    prefix?: string;
+}
+interface CacheStats {
+    hits: number;
+    misses: number;
+    hitRate: number;
+    size: number;
+}
+declare class RedisCacheService {
+    private client;
+    private isConnected;
+    private stats;
+    /**
+     * Initialize Redis connection
+     */
+    connect(): Promise<void>;
+    /**
+     * Disconnect from Redis
+     */
+    disconnect(): Promise<void>;
+    /**
+     * Check if Redis is connected
+     */
+    isReady(): boolean;
+    /**
+     * Get value from cache
+     */
+    get<T>(key: string): Promise<T | null>;
+    /**
+     * Set value in cache with optional TTL
+     */
+    set(key: string, value: any, options?: CacheOptions): Promise<void>;
+    /**
+     * Delete value from cache
+     */
+    delete(key: string): Promise<void>;
+    /**
+     * Delete all keys matching a pattern
+     */
+    deletePattern(pattern: string): Promise<void>;
+    /**
+     * Get or set pattern - returns cached value or computes and caches result
+     */
+    getOrSet<T>(key: string, fetchFn: () => Promise<T>, options?: CacheOptions): Promise<T>;
+    /**
+     * Invalidate cache by pattern (e.g., "user:*", "analytics:*")
+     */
+    invalidate(pattern: string): Promise<void>;
+    /**
+     * Clear all cache
+     */
+    flush(): Promise<void>;
+    /**
+     * Get cache statistics
+     */
+    getStats(): Promise<CacheStats>;
+    /**
+     * Reset statistics
+     */
+    resetStats(): void;
+    /**
+     * Utility: Generate cache key with prefix
+     */
+    generateKey(prefix: string, ...parts: string[]): string;
+}
+declare const CacheKeys: {
+    user: (userId: string) => string;
+    userByEmail: (email: string) => string;
+    userList: (filters: string) => string;
+    loginAnalytics: (startDate: string, endDate: string) => string;
+    userActivity: (userId: string) => string;
+    adminAnalytics: (period: string) => string;
+    recentActivity: (limit: number) => string;
+    pov: (povId: string) => string;
+    povList: (filters: string) => string;
+    trr: (trrId: string) => string;
+    trrList: (filters: string) => string;
+    session: (sessionId: string) => string;
+    userSessions: (userId: string) => string;
+    activeSessions: () => string;
+};
+declare const CacheInvalidationPatterns: {
+    user: (userId: string) => string[];
+    analytics: () => string[];
+    pov: (povId: string) => string[];
+    trr: (trrId: string) => string[];
+    sessions: (userId: string) => string[];
+};
+declare function getRedisCacheService(): RedisCacheService;
+declare const redisCacheService: RedisCacheService;
+
+/**
+ * Optimized Record Processing Strategy for Legacy Data Migration
+ * Designed for high-throughput processing on GKE with Node.js
+ * Handles millions of records with parallel processing and intelligent batching
+ *
+ * Integrated with Cortex DC PostgreSQL and Redis caching
+ */
+
+interface ProcessingConfig {
+    initialBatchSize: number;
+    minBatchSize: number;
+    maxBatchSize: number;
+    maxParallelBatches: number;
+    maxWorkersPerBatch: number;
+    memoryThresholdMB: number;
+    dbConnectionPoolSize: number;
+    prefetchSize: number;
+    maxRetries: number;
+    retryBackoffMs: number[];
+    errorThresholdPercent: number;
+    pauseBetweenBatchesMs: number;
+    healthCheckIntervalMs: number;
+    progressReportIntervalMs: number;
+}
+declare const DEFAULT_CONFIG: ProcessingConfig;
+interface StagingRecord {
+    id: string;
+    importJobId: string;
+    rowNumber: number;
+    rawData: Record<string, any>;
+    transformedData: Record<string, any>;
+    validationStatus: string;
+    validationErrors: ValidationError[];
+    processingStatus: string;
+    createdAt: Date;
+}
+interface ValidationError {
+    field: string;
+    ruleId: string;
+    severity: 'error' | 'warning';
+    message: string;
+    currentValue: any;
+    suggestedValue?: any;
+}
+interface ImportConfiguration {
+    targetTable: string;
+    uniqueFields: string[];
+    mappings: FieldMapping[];
+    transformations: DataTransformation[];
+    skipHeaders: boolean;
+    conflictResolution: string;
+}
+interface FieldMapping {
+    sourceField: string;
+    targetField: string;
+    targetType: string;
+    required: boolean;
+}
+interface DataTransformation {
+    id: string;
+    type: string;
+    order: number;
+    parameters: any;
+}
+interface ValidationResult {
+    valid: any[];
+    invalid: any[];
+    warnings: any[];
+}
+interface TransformedRecord {
+    id: string;
+    originalData: any;
+    transformedData: any;
+    timestamp: Date;
+}
+interface WriteResult {
+    inserted: number;
+    updated: number;
+    failed: number;
+    errors: any[];
+}
+interface ProcessingMetrics {
+    totalProcessed: number;
+    successfulRecords: number;
+    failedRecords: number;
+    batchesProcessed: number;
+    batchErrors: number;
+    averageProcessingTimeMs: number;
+    errorRate: number;
+    throughputRecordsPerSecond: number;
+    startTime: Date;
+}
+interface JobResult {
+    jobId: string;
+    status: string;
+    metrics: ProcessingMetrics;
+    duration: number;
+}
+declare class RecordProcessingOrchestrator extends EventEmitter {
+    private config;
+    private metrics;
+    private isPaused;
+    private isHealthy;
+    private healthCheckInterval;
+    private progressInterval;
+    constructor(config?: Partial<ProcessingConfig>);
+    processImportJob(jobId: string): Promise<JobResult>;
+    private processBatch;
+    private adjustBatchSize;
+    private shouldPauseOnErrors;
+    private startHealthMonitoring;
+    private startProgressReporting;
+    private stopMonitoring;
+    private fetchStagingRecords;
+    private initializeMetrics;
+    private updateMetrics;
+    private finalizeJob;
+    private sleep;
+    private getJobConfig;
+    private handleInvalidRecords;
+    private updateStagingRecordsStatus;
+}
+
+/**
+ * OpenSearch Service
+ * Full-text search implementation for Cortex DC Platform
+ *
+ * Features:
+ * - Full-text search across POVs, TRRs, users, and projects
+ * - Fuzzy matching and autocomplete
+ * - Highlighting of matching terms
+ * - Aggregations and filters
+ * - Auto-indexing on create/update
+ *
+ * @see OPENSEARCH_MEMGRAPH_INTEGRATION_GUIDE.md for setup instructions
+ */
+interface SearchOptions {
+    query: string;
+    types?: string[];
+    limit?: number;
+    offset?: number;
+    userId?: string;
+    filters?: Record<string, any>;
+}
+interface SearchResult {
+    id: string;
+    type: string;
+    title: string;
+    description?: string;
+    metadata?: any;
+    score: number;
+    highlight?: any;
+}
+interface BulkIndexDocument {
+    id: string;
+    doc: any;
+}
+interface IndexStats {
+    totalDocuments: number;
+    indexSize: string;
+    lastIndexed: Date | null;
+}
+declare class OpenSearchService {
+    private client;
+    private isConnected;
+    private readonly indexes;
+    constructor();
+    /**
+     * Connect to OpenSearch cluster
+     */
+    connect(): Promise<void>;
+    /**
+     * Disconnect from OpenSearch
+     */
+    disconnect(): Promise<void>;
+    /**
+     * Check if connected to OpenSearch
+     */
+    isReady(): boolean;
+    /**
+     * Create indexes with optimized settings
+     */
+    private createIndexes;
+    /**
+     * Index a single document
+     */
+    indexDocument(type: string, id: string, document: any): Promise<void>;
+    /**
+     * Bulk index multiple documents (optimized for large datasets)
+     */
+    bulkIndex(type: string, documents: BulkIndexDocument[]): Promise<void>;
+    /**
+     * Search across indexes with advanced features
+     */
+    search(options: SearchOptions): Promise<SearchResult[]>;
+    /**
+     * Update an existing document
+     */
+    updateDocument(type: string, id: string, doc: any): Promise<void>;
+    /**
+     * Delete a document from the index
+     */
+    deleteDocument(type: string, id: string): Promise<void>;
+    /**
+     * Get suggestions for autocomplete
+     */
+    getSuggestions(query: string, type?: string, limit?: number): Promise<string[]>;
+    /**
+     * Get index statistics
+     */
+    getIndexStats(type: string): Promise<IndexStats | null>;
+    /**
+     * Reindex all documents from database (useful for initial setup)
+     */
+    reindexAll(): Promise<void>;
+    /**
+     * Delete an entire index
+     */
+    deleteIndex(type: string): Promise<void>;
+    /**
+     * Format bytes to human-readable size
+     */
+    private formatBytes;
+}
+declare const openSearchService: OpenSearchService;
+
+/**
+ * Memgraph Service
+ * Graph database for user interaction tracking and AI-powered recommendations
+ *
+ * Features:
+ * - User interaction tracking (views, clicks, searches)
+ * - Relationship graph between users and entities
+ * - Collaborative filtering recommendations
+ * - Trending entity detection
+ * - User similarity analysis
+ * - AI-powered recommendation engine
+ *
+ * @see OPENSEARCH_MEMGRAPH_INTEGRATION_GUIDE.md for setup instructions
+ */
+interface Interaction {
+    userId: string;
+    action: string;
+    entityType: string;
+    entityId: string;
+    timestamp?: Date;
+    metadata?: Record<string, any>;
+}
+interface Recommendation {
+    entityId: string;
+    entityType: string;
+    title?: string;
+    score: number;
+    reason: string;
+    confidence: number;
+}
+interface TrendingEntity {
+    entityId: string;
+    entityType: string;
+    interactionCount: number;
+    uniqueUsers: number;
+    trendScore: number;
+}
+interface UserSimilarity {
+    userId: string;
+    similarityScore: number;
+    commonInterests: number;
+}
+interface InteractionStats {
+    totalInteractions: number;
+    uniqueUsers: number;
+    uniqueEntities: number;
+    topActions: Array<{
+        action: string;
+        count: number;
+    }>;
+    activityByDay: Array<{
+        date: string;
+        count: number;
+    }>;
+}
+declare class MemgraphService {
+    private driver;
+    private isConnected;
+    constructor();
+    /**
+     * Connect to Memgraph database
+     */
+    connect(): Promise<void>;
+    /**
+     * Disconnect from Memgraph
+     */
+    disconnect(): Promise<void>;
+    /**
+     * Check if connected to Memgraph
+     */
+    isReady(): boolean;
+    /**
+     * Get a database session
+     */
+    private getSession;
+    /**
+     * Create database constraints and indexes
+     */
+    private createConstraintsAndIndexes;
+    /**
+     * Track a user interaction
+     */
+    trackInteraction(interaction: Interaction): Promise<void>;
+    /**
+     * Get personalized recommendations for a user
+     * Uses collaborative filtering based on similar users' interactions
+     */
+    getRecommendations(userId: string, limit?: number): Promise<Recommendation[]>;
+    /**
+     * Get trending entities based on recent interactions
+     */
+    getTrending(entityType?: string, days?: number, limit?: number): Promise<TrendingEntity[]>;
+    /**
+     * Get user's interaction history
+     */
+    getUserInteractions(userId: string, limit?: number): Promise<any[]>;
+    /**
+     * Find similar users based on interaction patterns
+     */
+    findSimilarUsers(userId: string, limit?: number): Promise<UserSimilarity[]>;
+    /**
+     * Get interaction statistics
+     */
+    getInteractionStats(): Promise<InteractionStats | null>;
+    /**
+     * Delete all user interactions (for privacy/GDPR compliance)
+     */
+    deleteUserData(userId: string): Promise<void>;
+    /**
+     * Clear all data (use with caution!)
+     */
+    clearAllData(): Promise<void>;
+    /**
+     * Parse JSON string safely
+     */
+    private parseJSON;
+}
+declare const memgraphService: MemgraphService;
+
 interface FirestoreConfig {
     app: FirebaseApp;
     useEmulator?: boolean;
@@ -2435,43 +2980,43 @@ declare const UserProfileSchema: z.ZodObject<{
             desktop: z.ZodDefault<z.ZodBoolean>;
         }, "strip", z.ZodTypeAny, {
             email: boolean;
-            inApp: boolean;
             desktop: boolean;
+            inApp: boolean;
         }, {
             email?: boolean | undefined;
-            inApp?: boolean | undefined;
             desktop?: boolean | undefined;
+            inApp?: boolean | undefined;
         }>>;
         dashboard: z.ZodDefault<z.ZodObject<{
             layout: z.ZodDefault<z.ZodEnum<["grid", "list"]>>;
             defaultView: z.ZodOptional<z.ZodString>;
         }, "strip", z.ZodTypeAny, {
-            layout: "grid" | "list";
+            layout: "list" | "grid";
             defaultView?: string | undefined;
         }, {
             defaultView?: string | undefined;
-            layout?: "grid" | "list" | undefined;
+            layout?: "list" | "grid" | undefined;
         }>>;
     }, "strip", z.ZodTypeAny, {
         dashboard: {
-            layout: "grid" | "list";
+            layout: "list" | "grid";
             defaultView?: string | undefined;
         };
         notifications: {
             email: boolean;
-            inApp: boolean;
             desktop: boolean;
+            inApp: boolean;
         };
         theme: "light" | "dark" | "system";
     }, {
         dashboard?: {
             defaultView?: string | undefined;
-            layout?: "grid" | "list" | undefined;
+            layout?: "list" | "grid" | undefined;
         } | undefined;
         notifications?: {
             email?: boolean | undefined;
-            inApp?: boolean | undefined;
             desktop?: boolean | undefined;
+            inApp?: boolean | undefined;
         } | undefined;
         theme?: "light" | "dark" | "system" | undefined;
     }>>;
@@ -2518,13 +3063,13 @@ declare const UserProfileSchema: z.ZodObject<{
             moderate: z.ZodDefault<z.ZodBoolean>;
         }, "strip", z.ZodTypeAny, {
             create: boolean;
-            edit: boolean;
             publish: boolean;
+            edit: boolean;
             moderate: boolean;
         }, {
             create?: boolean | undefined;
-            edit?: boolean | undefined;
             publish?: boolean | undefined;
+            edit?: boolean | undefined;
             moderate?: boolean | undefined;
         }>>;
         scenarioEngine: z.ZodDefault<z.ZodObject<{
@@ -2603,8 +3148,8 @@ declare const UserProfileSchema: z.ZodObject<{
         };
         contentHub: {
             create: boolean;
-            edit: boolean;
             publish: boolean;
+            edit: boolean;
             moderate: boolean;
         };
         scenarioEngine: {
@@ -2644,8 +3189,8 @@ declare const UserProfileSchema: z.ZodObject<{
         } | undefined;
         contentHub?: {
             create?: boolean | undefined;
-            edit?: boolean | undefined;
             publish?: boolean | undefined;
+            edit?: boolean | undefined;
             moderate?: boolean | undefined;
         } | undefined;
         scenarioEngine?: {
@@ -2697,8 +3242,8 @@ declare const UserProfileSchema: z.ZodObject<{
         };
         contentHub: {
             create: boolean;
-            edit: boolean;
             publish: boolean;
+            edit: boolean;
             moderate: boolean;
         };
         scenarioEngine: {
@@ -2720,13 +3265,13 @@ declare const UserProfileSchema: z.ZodObject<{
     };
     preferences: {
         dashboard: {
-            layout: "grid" | "list";
+            layout: "list" | "grid";
             defaultView?: string | undefined;
         };
         notifications: {
             email: boolean;
-            inApp: boolean;
             desktop: boolean;
+            inApp: boolean;
         };
         theme: "light" | "dark" | "system";
     };
@@ -2764,8 +3309,8 @@ declare const UserProfileSchema: z.ZodObject<{
         } | undefined;
         contentHub?: {
             create?: boolean | undefined;
-            edit?: boolean | undefined;
             publish?: boolean | undefined;
+            edit?: boolean | undefined;
             moderate?: boolean | undefined;
         } | undefined;
         scenarioEngine?: {
@@ -2791,12 +3336,12 @@ declare const UserProfileSchema: z.ZodObject<{
     preferences?: {
         dashboard?: {
             defaultView?: string | undefined;
-            layout?: "grid" | "list" | undefined;
+            layout?: "list" | "grid" | undefined;
         } | undefined;
         notifications?: {
             email?: boolean | undefined;
-            inApp?: boolean | undefined;
             desktop?: boolean | undefined;
+            inApp?: boolean | undefined;
         } | undefined;
         theme?: "light" | "dark" | "system" | undefined;
     } | undefined;
@@ -2824,4 +3369,4 @@ interface TransactionContext {
     rollback(): Promise<void>;
 }
 
-export { type AdminAnalytics, type AnalyticsFilters, type AnalyticsResult, AnalyticsService, type AuthAdapter, type AuthCredentials, type AuthResult, type AuthUser, type BlueprintSummary, CHAT_COLLECTION, type ChatSchema, ChatValidationRules, type CreateUserRequest$1 as CreateUserRequest, type DataScope, type DatabaseAdapter, type DatabaseClient, DatabaseValidationService, DynamicRecordService, type EngagementRecord, FirestoreClient, FirestoreQueries, type LifecycleTransition, type Permission, type QueryFilter$1 as QueryFilter, type QueryOptions, type QueryResult, type RBACContext, type RBACEvent, RBACMiddleware, ROLE_PERMISSIONS, type RecordCreationOptions, type RelationshipGraph, RelationshipManagementService, type RelationshipValidation, type ScenarioTerraformOutput, type StorageAdapter, type StorageFile, type TerraformConfig, TerraformGenerationService, type TerraformResource, type TimelineEvent, type TransactionContext, USER_COLLECTION, type UpdateUserRequest$1 as UpdateUserRequest, type UploadOptions, type User, type UserActivity$1 as UserActivity, type UserAnalytics, UserManagementService, type UserProfile, UserRole, UserSchema, type UserSettings, UserValidationRules, type ValidationReport, type ValidationResult, analyticsService, firebaseApp as app, auth, authService, calculateAvgCycleDays, calculateWinRate, databaseValidationService, db, dcContextStore, dynamicRecordService, fetchAnalytics, fetchBlueprintSummary, fetchRegionEngagements, fetchUserEngagements, firebaseApp, forceReconnectEmulators, functions, getAuth, getDatabase, getFirebaseConfig, getStorage, initializeStorage, isMockAuthMode, relationshipManagementService, storage, terraformGenerationService, useEmulator, userActivityService, userManagementApiClient, userManagementService };
+export { type ActivityLogEvent, type AdminAnalytics, type AnalyticsFilters, type AnalyticsResult, AnalyticsService, type AuthAdapter, type AuthCredentials, type AuthResult, type AuthUser, type BlueprintSummary, type BulkIndexDocument, CHAT_COLLECTION, CacheInvalidationPatterns, CacheKeys, type CacheOptions, type CacheStats, type ChatSchema, ChatValidationRules, type CreateUserRequest$1 as CreateUserRequest, DEFAULT_CONFIG, type DataScope, type DatabaseAdapter, type DatabaseClient, DatabaseValidationService, DynamicRecordService, type EngagementRecord, EventTrackingService, FirestoreClient, FirestoreQueries, type ImportConfiguration, type IndexStats, type Interaction, type InteractionStats, type JobResult, type LifecycleTransition, type LoginAnalytics, type LoginEventData, MemgraphService, type ValidationResult as MigrationValidationResult, OpenSearchService, type Permission, type ProcessingConfig, type ProcessingMetrics, type QueryFilter$1 as QueryFilter, type QueryOptions, type QueryResult, type RBACContext, type RBACEvent, RBACMiddleware, ROLE_PERMISSIONS, type Recommendation, type RecordCreationOptions, RecordProcessingOrchestrator, RedisCacheService, type RelationshipGraph, RelationshipManagementService, type RelationshipValidation, type ScenarioTerraformOutput, type SearchOptions, type SearchResult, type StagingRecord, type StorageAdapter, type StorageFile, type TerraformConfig, TerraformGenerationService, type TerraformResource, type TimelineEvent, type TransactionContext, type TransformedRecord, type TrendingEntity, USER_COLLECTION, type UpdateUserRequest$1 as UpdateUserRequest, type UploadOptions, type User, type UserActivity$1 as UserActivity, type UserActivityAnalytics, type UserAnalytics, UserManagementService, type UserProfile, UserRole, UserSchema, type UserSessionData, type UserSettings, type UserSimilarity, UserValidationRules, type ValidationReport, type ValidationResult$1 as ValidationResult, type WriteResult, analyticsService, firebaseApp as app, auth, authService, calculateAvgCycleDays, calculateWinRate, databaseValidationService, db, dcContextStore, dynamicRecordService, eventTrackingService, fetchAnalytics, fetchBlueprintSummary, fetchRegionEngagements, fetchUserEngagements, firebaseApp, forceReconnectEmulators, functions, getAuth, getDatabase, getFirebaseConfig, getRedisCacheService, getStorage, initializeStorage, isMockAuthMode, memgraphService, openSearchService, redisCacheService, relationshipManagementService, storage, terraformGenerationService, useEmulator, userActivityService, userManagementApiClient, userManagementService };

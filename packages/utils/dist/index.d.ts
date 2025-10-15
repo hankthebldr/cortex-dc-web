@@ -170,6 +170,130 @@ declare const api: {
 };
 
 /**
+ * User Management API Client
+ * Client-side wrapper for user management API endpoints
+ * Replaces Firebase Functions with REST API calls
+ */
+interface UserProfile {
+    id?: string;
+    uid?: string;
+    email: string;
+    displayName: string;
+    photoURL: string | null;
+    role: 'user' | 'admin' | 'analyst' | 'manager';
+    organizationId: string | null;
+    department: string | null;
+    permissions: string[];
+    preferences: {
+        theme: 'light' | 'dark';
+        notifications: boolean;
+        language: string;
+    };
+    metadata: {
+        createdAt: any;
+        lastActive: any;
+        loginCount: number;
+        emailVerified: boolean;
+        providerData: any[];
+    };
+    status: 'active' | 'inactive' | 'pending' | 'suspended';
+}
+interface CreateUserRequest {
+    email: string;
+    displayName: string;
+    role?: string;
+    department?: string;
+    organizationId?: string;
+    theme?: 'light' | 'dark';
+    notifications?: boolean;
+    language?: string;
+}
+interface UpdateUserRequest {
+    uid?: string;
+    displayName?: string;
+    department?: string;
+    role?: string;
+    status?: string;
+    preferences?: {
+        theme?: 'light' | 'dark';
+        notifications?: boolean;
+        language?: string;
+    };
+}
+/**
+ * User Management API Client Class
+ */
+declare class UserApiClient {
+    private baseUrl;
+    constructor(baseUrl?: string);
+    /**
+     * Get authorization header
+     */
+    private getAuthHeader;
+    /**
+     * Make API request with authentication
+     */
+    private request;
+    /**
+     * Create a new user profile
+     */
+    createUser(userData: CreateUserRequest): Promise<{
+        success: boolean;
+        profile?: UserProfile;
+        error?: string;
+    }>;
+    /**
+     * Update user profile
+     */
+    updateUser(userId: string, updates: UpdateUserRequest): Promise<{
+        success: boolean;
+        profile?: UserProfile;
+        error?: string;
+    }>;
+    /**
+     * Get user profile by ID
+     */
+    getUserProfile(uid: string): Promise<UserProfile | null>;
+    /**
+     * Get current user profile
+     */
+    getCurrentUser(): Promise<UserProfile | null>;
+    /**
+     * Get all users with optional filters
+     */
+    getUsers(filters?: {
+        role?: string;
+        status?: string;
+        organizationId?: string;
+        limit?: number;
+    }): Promise<UserProfile[]>;
+    /**
+     * Delete user
+     */
+    deleteUser(userId: string): Promise<boolean>;
+    /**
+     * Bulk update users
+     */
+    bulkUpdateUsers(userIds: string[], updates: Partial<Pick<UserProfile, 'role' | 'status' | 'organizationId'>>): Promise<{
+        success: number;
+        failed: number;
+    }>;
+    /**
+     * Get organization members
+     */
+    getOrganizationMembers(organizationId: string): Promise<UserProfile[]>;
+    /**
+     * Export users data
+     */
+    exportUsers(filters?: {
+        role?: string;
+        status?: string;
+        organizationId?: string;
+    }): Promise<UserProfile[]>;
+}
+declare const userApiClient: UserApiClient;
+
+/**
  * Utility function to merge class names conditionally
  * Combines clsx functionality for flexible className handling
  */
@@ -183,6 +307,18 @@ declare function slugify(text: string): string;
 
 declare function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void;
 declare function throttle<T extends (...args: any[]) => any>(func: T, limit: number): (...args: Parameters<T>) => void;
+
+/**
+ * Browser Info Utility
+ * Extracts browser, OS, and device information from user agent
+ */
+interface BrowserInfo {
+    browser: string;
+    os: string;
+    deviceType: 'desktop' | 'mobile' | 'tablet';
+}
+declare function getBrowserInfo(userAgent?: string): BrowserInfo;
+declare function generateSessionId(): string;
 
 declare function validateEmail(email: string): boolean;
 declare function validatePassword(password: string): boolean;
@@ -489,4 +625,4 @@ interface FormatOptions {
     timeZone?: string;
 }
 
-export { APP_CONFIG, type AnalyticsData, type ApiResponse, type AppConfig, type ArgSpec, type ArgSpecItem, type ArgType, cloudStoreService as CloudStoreService, type CloudStoredMarkdown, type CommandExecutionResult, type EnvironmentConfig, type FeatureFlagDefinition, type FeatureFlagState, type FormatOptions, type HealthCheckResult, type POVData, type PaginatedResponse, type ParsedArgs, type PlatformEnvironment, type PlatformSettingsAuditEntry, type PlatformSettingsDocument, type ReleaseChannel, type ScenarioData, type TRRData, type UserContext, VALIDATION_RULES, type ValidationResult, api, apiService, argsToString, cloudStoreService, cn, contextStorage, debounce, formatDate, formatRelativeTime, generateId, parseArgs, platformSettingsService, slugify, throttle, validateArgs, validateEmail, validatePassword };
+export { APP_CONFIG, type AnalyticsData, type ApiResponse, type AppConfig, type ArgSpec, type ArgSpecItem, type ArgType, type BrowserInfo, cloudStoreService as CloudStoreService, type CloudStoredMarkdown, type CommandExecutionResult, type CreateUserRequest, type EnvironmentConfig, type FeatureFlagDefinition, type FeatureFlagState, type FormatOptions, type HealthCheckResult, type POVData, type PaginatedResponse, type ParsedArgs, type PlatformEnvironment, type PlatformSettingsAuditEntry, type PlatformSettingsDocument, type ReleaseChannel, type ScenarioData, type TRRData, type UpdateUserRequest, type UserContext, type UserProfile, VALIDATION_RULES, type ValidationResult, api, apiService, argsToString, cloudStoreService, cn, contextStorage, debounce, formatDate, formatRelativeTime, generateId, generateSessionId, getBrowserInfo, parseArgs, platformSettingsService, slugify, throttle, userApiClient, validateArgs, validateEmail, validatePassword };

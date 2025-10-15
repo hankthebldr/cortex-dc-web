@@ -1,47 +1,35 @@
 /**
- * User Management Service
- * Comprehensive service for user profile management, activity tracking,
- * settings, notifications, and organizational structure
+ * User Management Service (Refactored)
+ * Uses database adapter for multi-backend support
  *
- * Migrated from henryreed.ai/hosting/lib/user-management-service.ts
- *
- * MIGRATION NOTE: This service now supports both Firebase Functions and REST API
- * - In Firebase mode: Uses httpsCallable for createUserProfile/updateUserProfile
- * - In self-hosted mode: Uses REST API endpoints
- *
- * Mode is determined by DEPLOYMENT_MODE or NEXT_PUBLIC_DEPLOYMENT_MODE environment variable
+ * CHANGES FROM ORIGINAL:
+ * - Removed direct Firebase Firestore imports
+ * - Uses getDatabase() adapter instead of direct 'db' access
+ * - Removed Firebase Functions httpsCallable (use REST API)
+ * - Removed onSnapshot subscriptions (not portable, use polling/websockets instead)
+ * - Simplified to work with any backend (Firebase, Postgres, etc.)
  */
 
-import { httpsCallable, HttpsCallableResult } from 'firebase/functions';
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
-  updateDoc,
-  addDoc,
-  deleteDoc,
-  onSnapshot,
-  Unsubscribe
-} from 'firebase/firestore';
-import { functions, db } from '../firebase-config';
+import { getDatabase } from '../adapters/database.factory';
+import type { DatabaseAdapter } from '../adapters/database.adapter';
+import type { UserProfile as AuthUserProfile } from '../types/auth';
 
 // ============================================================================
 // INTERFACES
 // ============================================================================
 
+/**
+ * @deprecated Use UserProfile from '../types/auth' instead
+ * This interface is kept for backward compatibility
+ */
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
-  photoURL: string | null;
+  photoURL?: string | null;
   role: 'user' | 'admin' | 'analyst' | 'manager';
-  organizationId: string | null;
-  department: string | null;
+  organizationId?: string | null;
+  department?: string | null;
   permissions: string[];
   preferences: {
     theme: 'light' | 'dark';
@@ -49,8 +37,8 @@ export interface UserProfile {
     language: string;
   };
   metadata: {
-    createdAt: any;
-    lastActive: any;
+    createdAt: Date;
+    lastActive: Date;
     loginCount: number;
     emailVerified: boolean;
     providerData: any[];
@@ -83,13 +71,13 @@ export interface UpdateUserRequest {
 }
 
 export interface UserActivity {
-  id: string;
+  id?: string;
   userId: string;
   action: string;
   entityType: string;
   entityId: string;
   details: any;
-  timestamp: any;
+  timestamp: Date;
 }
 
 export interface UserSettings {
@@ -108,7 +96,19 @@ export interface UserSettings {
     twoFactorEnabled: boolean;
     sessionTimeout: number;
   };
-  createdAt: any;
+  createdAt: Date;
+}
+
+export interface Notification {
+  id?: string;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  data?: any;
+  read: boolean;
+  createdAt: Date;
+  readAt?: Date;
 }
 
 // ============================================================================
@@ -116,35 +116,10 @@ export interface UserSettings {
 // ============================================================================
 
 export class UserManagementService {
+  private db: DatabaseAdapter;
 
-  // Firebase Functions (used in Firebase mode)
-  private createUserProfileFn = httpsCallable(functions, 'createUserProfile');
-  private updateUserProfileFn = httpsCallable(functions, 'updateUserProfile');
-
-  // API client (lazy loaded for self-hosted mode)
-  private apiClient: any = null;
-
-  /**
-   * Get deployment mode
-   */
-  private getDeploymentMode(): 'firebase' | 'self-hosted' {
-    const mode = process.env.DEPLOYMENT_MODE || process.env.NEXT_PUBLIC_DEPLOYMENT_MODE;
-    return mode === 'self-hosted' ? 'self-hosted' : 'firebase';
-  }
-
-  /**
-   * Get API client (lazy load)
-   */
-  private async getApiClient() {
-    if (!this.apiClient && this.getDeploymentMode() === 'self-hosted') {
-      try {
-        const { userApiClient } = await import('@cortex/utils');
-        this.apiClient = userApiClient;
-      } catch (error) {
-        console.error('Failed to load API client:', error);
-      }
-    }
-    return this.apiClient;
+  constructor() {
+    this.db = getDatabase();
   }
 
   // ============================================================================
@@ -153,24 +128,47 @@ export class UserManagementService {
 
   /**
    * Create a new user profile
-   * Uses Firebase Functions in Firebase mode, REST API in self-hosted mode
+   * NOTE: In most cases, user profiles are created automatically by authentication
+   * service. This method is for admin operations or migrations.
    */
-  async createUser(userData: CreateUserRequest): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
+  async createUser(userData: CreateUserRequest): Promise<{
+    success: boolean;
+    profile?: UserProfile;
+    error?: string
+  }> {
     try {
-      const mode = this.getDeploymentMode();
+      const userProfile: Omit<UserProfile, 'uid'> = {
+        email: userData.email,
+        displayName: userData.displayName,
+        photoURL: null,
+        role: (userData.role as any) || 'user',
+        organizationId: userData.organizationId || null,
+        department: userData.department || null,
+        permissions: [],
+        preferences: {
+          theme: userData.theme || 'light',
+          notifications: userData.notifications ?? true,
+          language: userData.language || 'en'
+        },
+        metadata: {
+          createdAt: new Date(),
+          lastActive: new Date(),
+          loginCount: 0,
+          emailVerified: false,
+          providerData: []
+        },
+        status: 'active'
+      };
 
-      if (mode === 'self-hosted') {
-        // Use REST API
-        const apiClient = await this.getApiClient();
-        if (!apiClient) {
-          throw new Error('API client not available');
+      const userId = await this.db.create<UserProfile>('users', userProfile);
+
+      return {
+        success: true,
+        profile: {
+          uid: userId,
+          ...userProfile
         }
-        return await apiClient.createUser(userData);
-      } else {
-        // Use Firebase Functions
-        const result: HttpsCallableResult<any> = await this.createUserProfileFn(userData);
-        return result.data;
-      }
+      };
     } catch (error: any) {
       console.error('Error creating user:', error);
       return {
@@ -182,30 +180,26 @@ export class UserManagementService {
 
   /**
    * Update user profile
-   * Uses Firebase Functions in Firebase mode, REST API in self-hosted mode
    */
-  async updateUser(updates: UpdateUserRequest): Promise<{ success: boolean; error?: string }> {
+  async updateUser(updates: UpdateUserRequest): Promise<{
+    success: boolean;
+    error?: string
+  }> {
     try {
-      const mode = this.getDeploymentMode();
-
-      if (mode === 'self-hosted') {
-        // Use REST API
-        const apiClient = await this.getApiClient();
-        if (!apiClient) {
-          throw new Error('API client not available');
-        }
-
-        const userId = updates.uid;
-        if (!userId) {
-          throw new Error('User ID is required for update');
-        }
-
-        return await apiClient.updateUser(userId, updates);
-      } else {
-        // Use Firebase Functions
-        const result: HttpsCallableResult<any> = await this.updateUserProfileFn(updates);
-        return result.data;
+      const userId = updates.uid;
+      if (!userId) {
+        throw new Error('User ID is required for update');
       }
+
+      // Remove uid from updates
+      const { uid, ...updateData } = updates;
+
+      await this.db.update('users', userId, {
+        ...updateData,
+        'metadata.lastModified': new Date()
+      });
+
+      return { success: true };
     } catch (error: any) {
       console.error('Error updating user:', error);
       return {
@@ -220,11 +214,8 @@ export class UserManagementService {
    */
   async getUserProfile(uid: string): Promise<UserProfile | null> {
     try {
-      const userDoc = await getDoc(doc(db, 'users', uid));
-      if (userDoc.exists()) {
-        return { uid, ...userDoc.data() } as UserProfile;
-      }
-      return null;
+      const user = await this.db.findOne<UserProfile>('users', uid);
+      return user;
     } catch (error) {
       console.error('Error fetching user profile:', error);
       return null;
@@ -241,32 +232,39 @@ export class UserManagementService {
     limit?: number;
   }): Promise<UserProfile[]> {
     try {
-      let q = query(collection(db, 'users'));
+      const queryFilters: any[] = [];
 
-      // Apply filters
+      // Build filters array
       if (filters?.role) {
-        q = query(q, where('role', '==', filters.role));
+        queryFilters.push({
+          field: 'role',
+          operator: '==',
+          value: filters.role
+        });
       }
       if (filters?.status) {
-        q = query(q, where('status', '==', filters.status));
+        queryFilters.push({
+          field: 'status',
+          operator: '==',
+          value: filters.status
+        });
       }
       if (filters?.organizationId) {
-        q = query(q, where('organizationId', '==', filters.organizationId));
+        queryFilters.push({
+          field: 'organizationId',
+          operator: '==',
+          value: filters.organizationId
+        });
       }
 
-      // Order by creation date
-      q = query(q, orderBy('metadata.createdAt', 'desc'));
+      const users = await this.db.findMany<UserProfile>('users', {
+        filters: queryFilters,
+        orderBy: 'metadata.createdAt',
+        orderDirection: 'desc',
+        limit: filters?.limit
+      });
 
-      // Apply limit
-      if (filters?.limit) {
-        q = query(q, limit(filters.limit));
-      }
-
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
-        uid: doc.id,
-        ...doc.data()
-      } as UserProfile));
+      return users;
     } catch (error) {
       console.error('Error fetching users:', error);
       return [];
@@ -275,6 +273,16 @@ export class UserManagementService {
 
   /**
    * Subscribe to users collection changes
+   *
+   * NOTE: Real-time subscriptions are not portable across all backends.
+   * For self-hosted deployments, consider using:
+   * - WebSocket connections for real-time updates
+   * - Polling with SWR (recommended for most cases)
+   * - Server-Sent Events (SSE)
+   *
+   * This method is deprecated for self-hosted mode.
+   *
+   * @deprecated Use polling or WebSocket-based updates instead
    */
   subscribeToUsers(
     callback: (users: UserProfile[]) => void,
@@ -284,35 +292,20 @@ export class UserManagementService {
       organizationId?: string;
       limit?: number;
     }
-  ): Unsubscribe {
-    let q = query(collection(db, 'users'));
+  ): () => void {
+    console.warn(
+      '⚠️  subscribeToUsers: Real-time subscriptions are Firebase-specific. ' +
+      'Consider using polling or WebSocket for self-hosted deployments.'
+    );
 
-    // Apply filters
-    if (filters?.role) {
-      q = query(q, where('role', '==', filters.role));
-    }
-    if (filters?.status) {
-      q = query(q, where('status', '==', filters.status));
-    }
-    if (filters?.organizationId) {
-      q = query(q, where('organizationId', '==', filters.organizationId));
-    }
-
-    // Order by creation date
-    q = query(q, orderBy('metadata.createdAt', 'desc'));
-
-    // Apply limit
-    if (filters?.limit) {
-      q = query(q, limit(filters.limit));
-    }
-
-    return onSnapshot(q, (querySnapshot) => {
-      const users = querySnapshot.docs.map(doc => ({
-        uid: doc.id,
-        ...doc.data()
-      } as UserProfile));
+    // Implement polling as fallback
+    const intervalId = setInterval(async () => {
+      const users = await this.getUsers(filters);
       callback(users);
-    });
+    }, 5000); // Poll every 5 seconds
+
+    // Return cleanup function
+    return () => clearInterval(intervalId);
   }
 
   // ============================================================================
@@ -324,19 +317,24 @@ export class UserManagementService {
    */
   async getUserActivity(userId?: string, limitCount: number = 50): Promise<UserActivity[]> {
     try {
-      let q = query(collection(db, 'activityLogs'));
+      const queryFilters: any[] = [];
 
       if (userId) {
-        q = query(q, where('userId', '==', userId));
+        queryFilters.push({
+          field: 'userId',
+          operator: '==',
+          value: userId
+        });
       }
 
-      q = query(q, orderBy('timestamp', 'desc'), limit(limitCount));
+      const activities = await this.db.findMany<UserActivity>('activityLogs', {
+        filters: queryFilters,
+        orderBy: 'timestamp',
+        orderDirection: 'desc',
+        limit: limitCount
+      });
 
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as UserActivity));
+      return activities;
     } catch (error) {
       console.error('Error fetching activity:', error);
       return [];
@@ -345,27 +343,25 @@ export class UserManagementService {
 
   /**
    * Subscribe to activity logs
+   *
+   * @deprecated Use polling or WebSocket-based updates instead
    */
   subscribeToActivity(
     callback: (activities: UserActivity[]) => void,
     userId?: string,
     limitCount: number = 50
-  ): Unsubscribe {
-    let q = query(collection(db, 'activityLogs'));
+  ): () => void {
+    console.warn(
+      '⚠️  subscribeToActivity: Real-time subscriptions are Firebase-specific. ' +
+      'Consider using polling or WebSocket for self-hosted deployments.'
+    );
 
-    if (userId) {
-      q = query(q, where('userId', '==', userId));
-    }
-
-    q = query(q, orderBy('timestamp', 'desc'), limit(limitCount));
-
-    return onSnapshot(q, (querySnapshot) => {
-      const activities = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as UserActivity));
+    const intervalId = setInterval(async () => {
+      const activities = await this.getUserActivity(userId, limitCount);
       callback(activities);
-    });
+    }, 5000);
+
+    return () => clearInterval(intervalId);
   }
 
   /**
@@ -373,7 +369,7 @@ export class UserManagementService {
    */
   async logActivity(activity: Omit<UserActivity, 'id' | 'timestamp'>): Promise<void> {
     try {
-      await addDoc(collection(db, 'activityLogs'), {
+      await this.db.create<UserActivity>('activityLogs', {
         ...activity,
         timestamp: new Date()
       });
@@ -391,11 +387,8 @@ export class UserManagementService {
    */
   async getUserSettings(userId: string): Promise<UserSettings | null> {
     try {
-      const settingsDoc = await getDoc(doc(db, 'userSettings', userId));
-      if (settingsDoc.exists()) {
-        return settingsDoc.data() as UserSettings;
-      }
-      return null;
+      const settings = await this.db.findOne<UserSettings>('userSettings', userId);
+      return settings;
     } catch (error) {
       console.error('Error fetching user settings:', error);
       return null;
@@ -407,12 +400,39 @@ export class UserManagementService {
    */
   async updateUserSettings(userId: string, settings: Partial<UserSettings>): Promise<boolean> {
     try {
-      await updateDoc(doc(db, 'userSettings', userId), settings);
+      await this.db.update('userSettings', userId, settings);
       return true;
     } catch (error) {
       console.error('Error updating user settings:', error);
       return false;
     }
+  }
+
+  /**
+   * Create default user settings
+   */
+  async createDefaultUserSettings(userId: string): Promise<UserSettings> {
+    const defaultSettings: UserSettings = {
+      userId,
+      dashboard: {
+        layout: 'grid',
+        widgets: ['recent-activity', 'notifications', 'quick-actions']
+      },
+      notifications: {
+        email: true,
+        browser: true,
+        mobile: false,
+        frequency: 'realtime'
+      },
+      security: {
+        twoFactorEnabled: false,
+        sessionTimeout: 3600 // 1 hour
+      },
+      createdAt: new Date()
+    };
+
+    await this.db.create<UserSettings>('userSettings', defaultSettings);
+    return defaultSettings;
   }
 
   // ============================================================================
@@ -431,19 +451,19 @@ export class UserManagementService {
    */
   async addUserToOrganization(userId: string, organizationId: string): Promise<boolean> {
     try {
-      await updateDoc(doc(db, 'users', userId), {
+      // Update user's organization
+      await this.db.update('users', userId, {
         organizationId,
         'metadata.lastModified': new Date()
       });
 
-      // Update organization member count
-      const orgRef = doc(db, 'organizations', organizationId);
-      const orgDoc = await getDoc(orgRef);
+      // Update organization member list
+      const org = await this.db.findOne<any>('organizations', organizationId);
 
-      if (orgDoc.exists()) {
-        const currentMembers = orgDoc.data().members || [];
+      if (org) {
+        const currentMembers = org.members || [];
         if (!currentMembers.includes(userId)) {
-          await updateDoc(orgRef, {
+          await this.db.update('organizations', organizationId, {
             members: [...currentMembers, userId],
             memberCount: currentMembers.length + 1,
             lastUpdated: new Date()
@@ -463,19 +483,19 @@ export class UserManagementService {
    */
   async removeUserFromOrganization(userId: string, organizationId: string): Promise<boolean> {
     try {
-      await updateDoc(doc(db, 'users', userId), {
+      // Remove user's organization
+      await this.db.update('users', userId, {
         organizationId: null,
         'metadata.lastModified': new Date()
       });
 
-      // Update organization member count
-      const orgRef = doc(db, 'organizations', organizationId);
-      const orgDoc = await getDoc(orgRef);
+      // Update organization member list
+      const org = await this.db.findOne<any>('organizations', organizationId);
 
-      if (orgDoc.exists()) {
-        const currentMembers = orgDoc.data().members || [];
+      if (org) {
+        const currentMembers = org.members || [];
         const updatedMembers = currentMembers.filter((id: string) => id !== userId);
-        await updateDoc(orgRef, {
+        await this.db.update('organizations', organizationId, {
           members: updatedMembers,
           memberCount: updatedMembers.length,
           lastUpdated: new Date()
@@ -496,20 +516,20 @@ export class UserManagementService {
   /**
    * Get user notifications
    */
-  async getUserNotifications(userId: string, limitCount: number = 20): Promise<any[]> {
+  async getUserNotifications(userId: string, limitCount: number = 20): Promise<Notification[]> {
     try {
-      const q = query(
-        collection(db, 'notifications'),
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc'),
-        limit(limitCount)
-      );
+      const notifications = await this.db.findMany<Notification>('notifications', {
+        filters: [{
+          field: 'userId',
+          operator: '==',
+          value: userId
+        }],
+        orderBy: 'createdAt',
+        orderDirection: 'desc',
+        limit: limitCount
+      });
 
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      return notifications;
     } catch (error) {
       console.error('Error fetching notifications:', error);
       return [];
@@ -521,7 +541,7 @@ export class UserManagementService {
    */
   async markNotificationRead(notificationId: string): Promise<boolean> {
     try {
-      await updateDoc(doc(db, 'notifications', notificationId), {
+      await this.db.update('notifications', notificationId, {
         read: true,
         readAt: new Date()
       });
@@ -543,7 +563,7 @@ export class UserManagementService {
     data?: any;
   }): Promise<boolean> {
     try {
-      await addDoc(collection(db, 'notifications'), {
+      await this.db.create<Notification>('notifications', {
         ...notification,
         read: false,
         createdAt: new Date()
@@ -551,6 +571,27 @@ export class UserManagementService {
       return true;
     } catch (error) {
       console.error('Error creating notification:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Bulk mark notifications as read
+   */
+  async markAllNotificationsRead(userId: string): Promise<boolean> {
+    try {
+      const notifications = await this.getUserNotifications(userId, 100);
+      const unreadNotifications = notifications.filter(n => !n.read);
+
+      for (const notification of unreadNotifications) {
+        if (notification.id) {
+          await this.markNotificationRead(notification.id);
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
       return false;
     }
   }
@@ -579,7 +620,7 @@ export class UserManagementService {
         activeUsers: users.filter(u => u.status === 'active').length,
         newUsersThisWeek: users.filter(u =>
           u.metadata.createdAt &&
-          new Date(u.metadata.createdAt.seconds * 1000) > weekAgo
+          new Date(u.metadata.createdAt) > weekAgo
         ).length,
         usersByRole: {} as Record<string, number>,
         usersByStatus: {} as Record<string, number>
@@ -620,7 +661,7 @@ export class UserManagementService {
 
     for (const userId of userIds) {
       try {
-        await updateDoc(doc(db, 'users', userId), {
+        await this.db.update('users', userId, {
           ...updates,
           'metadata.lastModified': new Date()
         });
@@ -643,6 +684,27 @@ export class UserManagementService {
     organizationId?: string;
   }): Promise<UserProfile[]> {
     return this.getUsers(filters);
+  }
+
+  /**
+   * Delete user (admin only)
+   * WARNING: This permanently deletes the user profile
+   */
+  async deleteUser(userId: string): Promise<boolean> {
+    try {
+      await this.db.delete('users', userId);
+
+      // Also delete related data
+      await this.db.delete('userSettings', userId);
+
+      // Note: Activity logs and notifications are typically retained for audit purposes
+      // If you want to delete them, add those operations here
+
+      return true;
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      return false;
+    }
   }
 }
 

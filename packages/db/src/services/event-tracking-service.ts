@@ -276,9 +276,9 @@ export class EventTrackingService {
       loginsByDay.sort((a, b) => a.date.localeCompare(b.date));
 
       // Get recent logins (last 50)
-      const recentLogins = loginEvents.slice(0, 50);
+      const recentLogins = loginEvents.slice(0, 50) as LoginEventData[];
 
-      const analytics = {
+      const analytics: LoginAnalytics = {
         totalLogins,
         successfulLogins,
         failedLogins,
@@ -337,10 +337,10 @@ export class EventTrackingService {
       });
 
       // Get recent activity (last 50)
-      const recentActivity = activities.slice(0, 50);
+      const recentActivity = activities.slice(0, 50) as ActivityLogEvent[];
 
       // Get last active timestamp
-      const lastActive = activities.length > 0 ? new Date(activities[0].timestamp) : null;
+      const lastActive = activities.length > 0 ? new Date((activities[0] as any).timestamp) : null;
 
       // Get active sessions count
       const sessions = await db.findMany('userSessions', {
@@ -350,7 +350,7 @@ export class EventTrackingService {
         ],
       });
 
-      const analytics = {
+      const analytics: UserActivityAnalytics = {
         userId,
         totalActions,
         actionsByType,
@@ -389,7 +389,7 @@ export class EventTrackingService {
         limit,
       });
 
-      return activities;
+      return activities as ActivityLogEvent[];
     } catch (error) {
       console.error('Error getting recent activity:', error);
       return [];
