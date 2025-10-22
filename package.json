@@ -30,6 +30,8 @@
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "test": "turbo run test",
+    "test:smoke": "bash scripts/quick-smoke-test.sh",
+    "test:smoke:full": "bash scripts/smoke-test.sh",
     "clean": "turbo run clean",
     "setup": "pnpm install && firebase login && firebase use cortex-dc-portal",
     "seed:users": "RUN_DIRECT=1 tsx packages/admin-tools/src/seedUsers.ts",

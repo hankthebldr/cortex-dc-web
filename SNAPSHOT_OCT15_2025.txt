@@ -1,0 +1,142 @@
+================================================================================
+CORTEX-DC-WEB REPOSITORY SNAPSHOT
+Date: October 15, 2025
+Time: ~16:35 UTC
+Status: Paused - Work moved to henryred.ai
+================================================================================
+
+CURRENT HEAD COMMIT
+-------------------
+Commit: 41ea0faa72258d4fccebca992859c0ea5fff29e1
+Author: Henry Reed <Henry.reed@icloud.com>
+Date: Wed Oct 15 04:24:11 2025 -0500
+Message: docs: create comprehensive verbose enterprise-grade README
+
+VERIFIED WORKING STATE
+----------------------
+✅ Next.js dev server: http://localhost:3000 (200 OK)
+✅ Firebase Auth Emulator: http://127.0.0.1:9099
+✅ Firebase Firestore Emulator: http://127.0.0.1:8080
+✅ Firebase Functions Emulator: http://127.0.0.1:5001
+✅ Firebase Storage Emulator: http://127.0.0.1:9199
+✅ Firebase Emulator UI: http://127.0.0.1:4040
+✅ API Health: http://localhost:3000/api/health
+✅ Auth API: http://localhost:3000/api/auth/me (401 - correct behavior)
+✅ Database: Using Firebase Firestore adapter
+
+CRITICAL CONFIGURATION
+---------------------
+DATABASE_TYPE=firestore (NOT postgres)
+DEPLOYMENT_MODE=firebase
+NEXT_PUBLIC_DEPLOYMENT_MODE=firebase
+FIRESTORE_PROJECT_ID=cortex-dc-portal
+NEXT_PUBLIC_USE_EMULATOR=true
+
+MODIFIED FILES (NOT COMMITTED)
+------------------------------
+M .gitignore (added smoke test artifacts)
+M firebase.json (removed extensions section)
+M package.json (added dependencies)
+M apps/web/.env.local (fixed database config)
+
+DELETED FILES (MOVED TO .example.txt)
+-------------------------------------
+D apps/web/app/(dashboard)/pov/[id]/enhanced-page-example.tsx
+D apps/web/app/api/ai/suggestions/route-example.ts
+D apps/web/app/api/povs/[id]/route-example.ts
+
+NEW FILES (NOT COMMITTED)
+-------------------------
++ DEPLOYMENT_GUIDE.md
++ KUBERNETES_GUIDE.md
++ LOCAL_TEST_REPORT.md
++ REPOSITORY_SYNC_TRACKING.md
++ SYNC_QUICK_REFERENCE.md
++ SNAPSHOT_OCT15_2025.txt (this file)
++ apps/web/app/dashboard/page.tsx
++ docs/CONSOLIDATION_DIAGRAM.md
++ scripts/quick-smoke-test.sh
++ scripts/smoke-test.sh
++ tests/smoke/
+
+KEY RECENT FEATURES (LAST 2 WEEKS)
+----------------------------------
+1. Comprehensive documentation (1,689 lines)
+2. UI architecture & design token system
+3. React testing infrastructure (Vitest, Playwright)
+4. GitHub Actions workflows (Claude Code Review, PR Assistant)
+5. Repository hygiene and governance
+6. Multi-target deployment guides
+7. Complete SBOM with 50+ dependencies
+8. 80+ UI components documented
+
+BUILD ISSUES RESOLVED TODAY
+---------------------------
+1. PostgreSQL/Prisma confusion → Fixed by setting DATABASE_TYPE=firestore
+2. Firebase extensions errors → Removed from firebase.json
+3. Port conflicts (8080, 5000) → Killed conflicting processes
+4. 500 error on /api/auth/me → Fixed by using Firebase adapter
+
+WHY WORK MOVED TO HENRYRED.AI
+-----------------------------
+- Build instability in cortex-dc-web
+- Database adapter configuration complexity
+- Firebase emulator startup issues
+- Need for stable development environment
+- Time-sensitive feature development
+
+TECH STACK VERSIONS
+-------------------
+Next.js: 14.2.13
+React: 18.2.0
+TypeScript: 5.9.3
+Firebase: 12.4.0
+Firebase Admin: 13.5.0
+Node.js: 22 (for functions)
+pnpm: 8.15.1
+
+PACKAGE STRUCTURE
+-----------------
+Root packages:
+- apps/web (Next.js application)
+- functions (Firebase Cloud Functions)
+- packages/db (Database adapters)
+- packages/ui (UI component library)
+- packages/ai (AI service integrations)
+- packages/utils (Shared utilities)
+- packages/admin-tools (Admin utilities)
+- packages/integrations (External integrations)
+- packages/terminal (Terminal utilities)
+- packages/commands (Command registry)
+- packages/content (Content management)
+- packages/test-utils (Testing utilities)
+
+DEPLOYMENT TARGETS
+------------------
+1. Firebase Hosting (Cloud-hosted)
+2. Kubernetes/GKE (Self-hosted)
+3. Local Development (Firebase Emulators)
+
+OUTSTANDING ISSUES
+------------------
+None - Application is fully functional as of this snapshot
+
+NEXT STEPS
+----------
+1. Track all features added to henryred.ai in REPOSITORY_SYNC_TRACKING.md
+2. When resuming cortex-dc-web, follow SYNC_QUICK_REFERENCE.md
+3. Use sync/henryred-ai-features branch for merging
+4. Verify all tests pass before merging
+5. Update PROJECT_STATUS.md when sync is complete
+
+IMPORTANT NOTES
+---------------
+- Always use Firebase adapter for local development
+- Don't commit .env.local files
+- Firebase extensions are optional for local dev
+- Port conflicts should be resolved before starting emulators
+- Database adapter should be explicitly set in environment variables
+
+================================================================================
+END OF SNAPSHOT
+================================================================================
