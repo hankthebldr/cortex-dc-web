@@ -1,0 +1,10 @@
+{
+  "id": "cortex-dc-connector",
+  "name": "Cortex DC Connector",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "description": "Connect your Obsidian vault to the Cortex Domain Consultant Platform. Send notes to POV pipelines, TRR workflows, and the knowledge base.",
+  "author": "Cortex DC Team",
+  "authorUrl": "https://github.com/hankthebldr/cortex-dc-web",
+  "isDesktopOnly": false
+}

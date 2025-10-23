@@ -1,0 +1,24 @@
+# Obsidian plugin build artifacts
+main.js
+main.js.map
+*.js.map
+styles.css
+
+# Dependencies
+node_modules/
+
+# Development
+.DS_Store
+*.log
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build
+dist/
+build/
