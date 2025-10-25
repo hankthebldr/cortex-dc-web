@@ -82,6 +82,19 @@ function TRRDetailContent() {
     technicalRequirements: [] as string[],
   });
 
+  // Helper to convert assignedTo between array and string
+  const assignedToArrayToString = (value: any): string => {
+    if (!value) return '';
+    if (Array.isArray(value)) return value.join(', ');
+    if (typeof value === 'string') return value;
+    return '';
+  };
+
+  const assignedToStringToArray = (value: string): string[] => {
+    if (!value || value.trim().length === 0) return [];
+    return value.split(',').map(v => v.trim()).filter(v => v.length > 0);
+  };
+
   // Initialize form data when TRR loads or editing starts
   useEffect(() => {
     if (trr && isEditing) {
@@ -91,7 +104,7 @@ function TRRDetailContent() {
         projectName: trr.projectName || '',
         status: trr.status || 'draft',
         priority: trr.priority || 'medium',
-        assignedTo: trr.assignedTo || '',
+        assignedTo: assignedToArrayToString(trr.assignedTo),
         dueDate: trr.dueDate ? new Date(trr.dueDate).toISOString().split('T')[0] : '',
         scope: trr.scope || [],
         technicalRequirements: trr.technicalRequirements || [],
@@ -125,7 +138,7 @@ function TRRDetailContent() {
         projectName: formData.projectName?.trim() || '',
         status: formData.status,
         priority: formData.priority,
-        assignedTo: formData.assignedTo?.trim() || '',
+        assignedTo: assignedToStringToArray(formData.assignedTo),
         dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
         scope: formData.scope,
         technicalRequirements: formData.technicalRequirements,
@@ -158,7 +171,7 @@ function TRRDetailContent() {
         projectName: trr.projectName || '',
         status: trr.status || 'draft',
         priority: trr.priority || 'medium',
-        assignedTo: trr.assignedTo || '',
+        assignedTo: assignedToArrayToString(trr.assignedTo),
         dueDate: trr.dueDate ? new Date(trr.dueDate).toISOString().split('T')[0] : '',
         scope: trr.scope || [],
         technicalRequirements: trr.technicalRequirements || [],
@@ -449,19 +462,22 @@ function TRRDetailContent() {
                   type="text"
                   value={formData.assignedTo}
                   onChange={(e) => handleFormChange('assignedTo', e.target.value)}
-                  placeholder="Enter assignee name"
+                  placeholder="Enter names separated by commas"
                   className="w-full"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Enter multiple assignees separated by commas
+                </p>
               </div>
             ) : (
               <div className="flex items-center justify-between">
-                <div>
+                <div className="flex-1">
                   <p className="text-sm text-gray-600">Assigned To</p>
-                  <p className="text-lg font-semibold text-gray-900 mt-1 truncate">
-                    {trr.assignedTo || 'Unassigned'}
+                  <p className="text-lg font-semibold text-gray-900 mt-1">
+                    {assignedToArrayToString(trr.assignedTo) || 'Unassigned'}
                   </p>
                 </div>
-                <Users className="w-8 h-8 text-gray-400" />
+                <Users className="w-8 h-8 text-gray-400 flex-shrink-0" />
               </div>
             )}
           </CardContent>

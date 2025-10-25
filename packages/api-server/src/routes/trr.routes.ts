@@ -27,7 +27,7 @@ router.get('/', async (req: AuthRequest, res) => {
 router.get('/:id', async (req: AuthRequest, res) => {
   try {
     const db = getDatabase();
-    const trr = await db.findOne('trrs', req.params.id);
+    const trr = await db.findOne('trrs', req.params.id) as any;
     if (!trr) return res.status(404).json({ error: 'TRR not found' });
 
     // Authorization: Verify user owns this TRR
@@ -76,7 +76,7 @@ router.put('/:id', async (req: AuthRequest, res) => {
     const db = getDatabase();
 
     // Authorization: Verify user owns this TRR before updating
-    const existingTRR = await db.findOne('trrs', req.params.id);
+    const existingTRR = await db.findOne('trrs', req.params.id) as any;
     if (!existingTRR) {
       return res.status(404).json({ error: 'TRR not found' });
     }
@@ -96,10 +96,9 @@ router.put('/:id', async (req: AuthRequest, res) => {
       });
     }
 
-    // Prevent changing ownership and organization
-    const { createdBy, organizationId, ...updateData } = validation.data;
+    // Update TRR (validation already excludes createdBy and organizationId)
     const trr = await db.update('trrs', req.params.id, {
-      ...updateData,
+      ...validation.data,
       lastModifiedBy: req.user?.uid,
       updatedAt: new Date()
     });
@@ -115,7 +114,7 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const db = getDatabase();
 
     // Authorization: Verify user owns this TRR before deleting
-    const existingTRR = await db.findOne('trrs', req.params.id);
+    const existingTRR = await db.findOne('trrs', req.params.id) as any;
     if (!existingTRR) {
       return res.status(404).json({ error: 'TRR not found' });
     }

@@ -56,6 +56,7 @@ export { Terminal } from './components/Terminal';
 // Domain-specific components
 export { POVCard } from './components/pov/POVCard';
 export { TRRStatus } from './components/trr/TRRStatus';
+export type { TRRStatusType } from './components/trr/TRRStatus';
 
 // Hooks
 export { useTerminal } from './hooks/useTerminal';
