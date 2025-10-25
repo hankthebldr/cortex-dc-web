@@ -526,7 +526,7 @@ export class FederatedDataService {
   private invalidateCache(collection?: string): void {
     if (collection) {
       // Invalidate collection-specific caches
-      for (const key of this.queryCache.keys()) {
+      for (const key of Array.from(this.queryCache.keys())) {
         if (key.startsWith(collection + ':')) {
           this.queryCache.delete(key);
         }
@@ -554,7 +554,7 @@ export class FederatedDataService {
   } {
     let oldestTimestamp = Date.now();
 
-    for (const entry of this.queryCache.values()) {
+    for (const entry of Array.from(this.queryCache.values())) {
       if (entry.timestamp < oldestTimestamp) {
         oldestTimestamp = entry.timestamp;
       }
