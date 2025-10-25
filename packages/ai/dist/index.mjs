@@ -3381,7 +3381,7 @@ async function getFirebaseApp() {
     return null;
   }
   try {
-    const db = await import("./src-V4DH5BZF.mjs");
+    const db = await import("./src-WTB5KG3L.mjs");
     return db.app || null;
   } catch (error) {
     console.error("Failed to import Firebase app:", error);
