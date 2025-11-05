@@ -1,0 +1,315 @@
+/**
+ * Animations - Cortex DC Design System
+ *
+ * Reusable animations and keyframes for micro-interactions
+ */
+
+@layer utilities {
+  /* ==================== Keyframe Animations ==================== */
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes fadeOut {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(10px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideDown {
+    from {
+      transform: translateY(-10px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideLeft {
+    from {
+      transform: translateX(10px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideRight {
+    from {
+      transform: translateX(-10px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      transform: scale(0.95);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes scaleOut {
+    from {
+      transform: scale(1);
+      opacity: 1;
+    }
+    to {
+      transform: scale(0.95);
+      opacity: 0;
+    }
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  @keyframes bounce {
+    0%, 100% {
+      transform: translateY(-25%);
+      animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+    }
+    50% {
+      transform: translateY(0);
+      animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  @keyframes ripple {
+    0% {
+      transform: scale(0);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(4);
+      opacity: 0;
+    }
+  }
+
+  @keyframes wiggle {
+    0%, 100% {
+      transform: rotate(-3deg);
+    }
+    50% {
+      transform: rotate(3deg);
+    }
+  }
+
+  /* ==================== Animation Classes ==================== */
+
+  .animate-fade-in {
+    animation: fadeIn var(--transition-base) var(--ease-out);
+  }
+
+  .animate-fade-out {
+    animation: fadeOut var(--transition-base) var(--ease-in);
+  }
+
+  .animate-slide-up {
+    animation: slideUp var(--transition-base) var(--ease-out);
+  }
+
+  .animate-slide-down {
+    animation: slideDown var(--transition-base) var(--ease-out);
+  }
+
+  .animate-slide-left {
+    animation: slideLeft var(--transition-base) var(--ease-out);
+  }
+
+  .animate-slide-right {
+    animation: slideRight var(--transition-base) var(--ease-out);
+  }
+
+  .animate-scale-in {
+    animation: scaleIn var(--transition-fast) var(--ease-out);
+  }
+
+  .animate-scale-out {
+    animation: scaleOut var(--transition-fast) var(--ease-in);
+  }
+
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-bounce {
+    animation: bounce 1s infinite;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+    background: linear-gradient(
+      to right,
+      transparent 0%,
+      rgba(255, 255, 255, 0.2) 50%,
+      transparent 100%
+    );
+    background-size: 1000px 100%;
+  }
+
+  .animate-wiggle {
+    animation: wiggle 1s ease-in-out infinite;
+  }
+
+  /* ==================== Transition Classes ==================== */
+
+  .transition-all {
+    transition-property: all;
+    transition-timing-function: var(--ease-in-out);
+    transition-duration: var(--transition-base);
+  }
+
+  .transition-colors {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: var(--ease-in-out);
+    transition-duration: var(--transition-base);
+  }
+
+  .transition-opacity {
+    transition-property: opacity;
+    transition-timing-function: var(--ease-in-out);
+    transition-duration: var(--transition-base);
+  }
+
+  .transition-transform {
+    transition-property: transform;
+    transition-timing-function: var(--ease-in-out);
+    transition-duration: var(--transition-base);
+  }
+
+  .transition-shadow {
+    transition-property: box-shadow;
+    transition-timing-function: var(--ease-in-out);
+    transition-duration: var(--transition-base);
+  }
+
+  /* ==================== Hover States ==================== */
+
+  .hover-lift {
+    transition: transform var(--transition-base) var(--ease-out),
+                box-shadow var(--transition-base) var(--ease-out);
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .hover-lift:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-md);
+  }
+
+  .hover-scale {
+    transition: transform var(--transition-fast) var(--ease-out);
+  }
+
+  .hover-scale:hover {
+    transform: scale(1.05);
+  }
+
+  .hover-scale:active {
+    transform: scale(0.98);
+  }
+
+  /* ==================== Loading States ==================== */
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgb(var(--color-gray-200)) 0%,
+      rgb(var(--color-gray-100)) 50%,
+      rgb(var(--color-gray-200)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  .skeleton-dark {
+    background: linear-gradient(
+      90deg,
+      rgb(var(--color-gray-700)) 0%,
+      rgb(var(--color-gray-600)) 50%,
+      rgb(var(--color-gray-700)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  /* ==================== Focus States ==================== */
+
+  .focus-ring {
+    @apply outline-none;
+    @apply focus-visible:ring-2;
+    @apply focus-visible:ring-primary-500;
+    @apply focus-visible:ring-offset-2;
+    @apply focus-visible:ring-offset-white;
+  }
+
+  .focus-ring-dark {
+    @apply outline-none;
+    @apply focus-visible:ring-2;
+    @apply focus-visible:ring-primary-500;
+    @apply focus-visible:ring-offset-2;
+    @apply focus-visible:ring-offset-gray-900;
+  }
+}
