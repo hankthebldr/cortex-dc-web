@@ -219,7 +219,7 @@ export interface MetricData {
 }
 
 /**
- * Chart data point
+ * Chart data point (legacy - for simple x/y charts)
  */
 export interface ChartDataPoint {
   /** X-axis value (usually timestamp or category) */
@@ -233,9 +233,40 @@ export interface ChartDataPoint {
 }
 
 /**
- * Chart configuration
+ * Flexible chart data type for Recharts
+ */
+export type ChartData = Record<string, any>;
+
+/**
+ * Chart series configuration
+ */
+export interface ChartSeries {
+  /** Data key in the chart data */
+  key: string;
+  /** Display name */
+  name: string;
+  /** Color */
+  color: ColorVariant;
+}
+
+/**
+ * Chart configuration for modern charts
  */
 export interface ChartConfig {
+  /** X-axis data key */
+  xAxisKey: string;
+  /** Series to display */
+  series: ChartSeries[];
+  /** X-axis label */
+  xLabel?: string;
+  /** Y-axis label */
+  yLabel?: string;
+}
+
+/**
+ * Legacy chart configuration
+ */
+export interface LegacyChartConfig {
   /** Chart type */
   type: 'line' | 'bar' | 'area' | 'pie' | 'donut' | 'scatter';
   /** Chart data */
