@@ -5,8 +5,7 @@
  * the visual language of the Cortex DC application.
  */
 
-@layer base {
-  :root {
+:root {
     /* ==================== Color System ==================== */
 
     /* Brand Colors - Orange Primary */
@@ -231,20 +230,19 @@
     }
   }
 
-  /* Dark mode class override */
-  .dark {
-    --background: 17 24 39;
-    --background-secondary: 31 41 55;
-    --background-tertiary: 55 65 81;
-    --background-elevated: 31 41 55;
+/* Dark mode class override */
+.dark {
+  --background: 17 24 39;
+  --background-secondary: 31 41 55;
+  --background-tertiary: 55 65 81;
+  --background-elevated: 31 41 55;
 
-    --foreground: 249 250 251;
-    --foreground-secondary: 209 213 219;
-    --foreground-tertiary: 156 163 175;
-    --foreground-inverse: 17 24 39;
+  --foreground: 249 250 251;
+  --foreground-secondary: 209 213 219;
+  --foreground-tertiary: 156 163 175;
+  --foreground-inverse: 17 24 39;
 
-    --border: 55 65 81;
-    --border-strong: 75 85 99;
-    --border-subtle: 31 41 55;
-  }
+  --border: 55 65 81;
+  --border-strong: 75 85 99;
+  --border-subtle: 31 41 55;
 }

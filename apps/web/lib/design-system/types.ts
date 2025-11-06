@@ -283,6 +283,18 @@ export interface LegacyChartConfig {
   colors?: string[];
 }
 
+/**
+ * Pie chart data item
+ */
+export interface PieDataItem {
+  /** Segment name */
+  name: string;
+  /** Segment value */
+  value: number;
+  /** Optional custom color */
+  color?: string;
+}
+
 /* ==================== Notification Types ==================== */
 
 /**

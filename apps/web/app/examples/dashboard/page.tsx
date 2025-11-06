@@ -93,33 +93,37 @@ export default function ExampleDashboardPage() {
     {
       id: '1',
       type: 'create',
-      user: { name: 'John Doe', avatar: '/avatars/john.jpg' },
+      actor: { id: 'user1', name: 'John Doe', avatar: '/avatars/john.jpg' },
+      action: 'created',
+      target: { type: 'pov', id: 'pov1', name: 'Enterprise Security Assessment' },
       timestamp: new Date(Date.now() - 1000 * 60 * 5),
-      description: 'Created a new POV document',
       metadata: { documentTitle: 'Enterprise Security Assessment' },
     },
     {
       id: '2',
       type: 'update',
-      user: { name: 'Jane Smith', avatar: '/avatars/jane.jpg' },
+      actor: { id: 'user2', name: 'Jane Smith', avatar: '/avatars/jane.jpg' },
+      action: 'updated',
+      target: { type: 'trr', id: 'trr1', name: 'Q4 Risk Review' },
       timestamp: new Date(Date.now() - 1000 * 60 * 15),
-      description: 'Updated TRR findings',
       metadata: { findingsCount: 3 },
     },
     {
       id: '3',
       type: 'comment',
-      user: { name: 'Bob Johnson', avatar: '/avatars/bob.jpg' },
+      actor: { id: 'user3', name: 'Bob Johnson', avatar: '/avatars/bob.jpg' },
+      action: 'commented on',
+      target: { type: 'finding', id: 'finding1', name: 'Critical Security Gap' },
       timestamp: new Date(Date.now() - 1000 * 60 * 30),
-      description: 'Commented on risk assessment',
       metadata: { comment: 'We should prioritize these findings' },
     },
     {
       id: '4',
       type: 'status_change',
-      user: { name: 'Alice Williams', avatar: '/avatars/alice.jpg' },
+      actor: { id: 'user4', name: 'Alice Williams', avatar: '/avatars/alice.jpg' },
+      action: 'changed status of',
+      target: { type: 'project', id: 'proj1', name: 'Cloud Migration' },
       timestamp: new Date(Date.now() - 1000 * 60 * 60),
-      description: 'Changed project status to "In Review"',
       metadata: { from: 'Draft', to: 'In Review' },
     },
   ];
@@ -172,8 +176,9 @@ export default function ExampleDashboardPage() {
       header: 'Status',
       accessor: 'status',
       cell: (value: string) => {
-        const variant = value === 'Active' ? 'success' : value === 'Completed' ? 'info' : 'warning';
-        return <Badge variant="subtle" color={variant as any}>{value}</Badge>;
+        if (value === 'Active') return <Badge color="success">{value}</Badge>;
+        if (value === 'Completed') return <Badge color="info">{value}</Badge>;
+        return <Badge color="warning">{value}</Badge>;
       },
     },
     {
@@ -181,8 +186,9 @@ export default function ExampleDashboardPage() {
       header: 'Priority',
       accessor: 'priority',
       cell: (value: string) => {
-        const color = value === 'High' ? 'danger' : value === 'Medium' ? 'warning' : 'gray';
-        return <Badge variant="solid" color={color as any}>{value}</Badge>;
+        if (value === 'High') return <Badge color="danger">{value}</Badge>;
+        if (value === 'Medium') return <Badge color="warning">{value}</Badge>;
+        return <Badge color="gray">{value}</Badge>;
       },
     },
     {
@@ -191,7 +197,12 @@ export default function ExampleDashboardPage() {
       accessor: 'progress',
       cell: (value: number) => (
         <div className="flex items-center gap-2">
-          <Progress value={value} max={100} size="sm" color={value === 100 ? 'success' : 'primary'} />
+          <Progress
+            value={value}
+            max={100}
+            color={value === 100 ? 'success' : 'primary'}
+            className="h-1"
+          />
           <span className="text-sm text-gray-600">{value}%</span>
         </div>
       ),
@@ -248,15 +259,15 @@ export default function ExampleDashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="md" startIcon={<Download className="h-4 w-4" />}>
+            <Button startIcon={<Download className="h-4 w-4" />}>
               Export
             </Button>
-            <Button variant="outline" size="md" startIcon={<Share2 className="h-4 w-4" />}>
+            <Button startIcon={<Share2 className="h-4 w-4" />}>
               Share
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="md">
+                <Button>
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -348,14 +359,12 @@ export default function ExampleDashboardPage() {
             />
             <div className="flex gap-3 mt-6">
               <Button
-                variant="outline"
                 disabled={currentStep === 0}
                 onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
               >
                 Previous
               </Button>
               <Button
-                variant="solid"
                 disabled={currentStep === steps.length - 1}
                 onClick={() => setCurrentStep(Math.min(steps.length - 1, currentStep + 1))}
               >
@@ -422,9 +431,9 @@ export default function ExampleDashboardPage() {
             <div className="flex gap-3">
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="solid">Open Dialog</Button>
+                  <Button>Open Dialog</Button>
                 </DialogTrigger>
-                <DialogContent size="md">
+                <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Create New Project</DialogTitle>
                   </DialogHeader>
@@ -435,14 +444,13 @@ export default function ExampleDashboardPage() {
                     </p>
                   </DialogBody>
                   <DialogFooter>
-                    <Button variant="outline">Cancel</Button>
-                    <Button variant="solid">Create Project</Button>
+                    <Button>Cancel</Button>
+                    <Button>Create Project</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
 
               <Button
-                variant="outline"
                 loading={isLoading}
                 onClick={() => {
                   setIsLoading(true);

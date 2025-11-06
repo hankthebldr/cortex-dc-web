@@ -4,10 +4,9 @@
  * Reusable animations and keyframes for micro-interactions
  */
 
-@layer utilities {
-  /* ==================== Keyframe Animations ==================== */
+/* ==================== Keyframe Animations ==================== */
 
-  @keyframes fadeIn {
+@keyframes fadeIn {
     from {
       opacity: 0;
     }
@@ -295,21 +294,20 @@
     animation: shimmer 1.5s ease-in-out infinite;
   }
 
-  /* ==================== Focus States ==================== */
+/* ==================== Focus States ==================== */
 
-  .focus-ring {
-    @apply outline-none;
-    @apply focus-visible:ring-2;
-    @apply focus-visible:ring-primary-500;
-    @apply focus-visible:ring-offset-2;
-    @apply focus-visible:ring-offset-white;
-  }
+.focus-ring {
+  @apply outline-none;
+  @apply focus-visible:ring-2;
+  @apply focus-visible:ring-primary-500;
+  @apply focus-visible:ring-offset-2;
+  @apply focus-visible:ring-offset-white;
+}
 
-  .focus-ring-dark {
-    @apply outline-none;
-    @apply focus-visible:ring-2;
-    @apply focus-visible:ring-primary-500;
-    @apply focus-visible:ring-offset-2;
-    @apply focus-visible:ring-offset-gray-900;
-  }
+.focus-ring-dark {
+  @apply outline-none;
+  @apply focus-visible:ring-2;
+  @apply focus-visible:ring-primary-500;
+  @apply focus-visible:ring-offset-2;
+  @apply focus-visible:ring-offset-gray-900;
 }
