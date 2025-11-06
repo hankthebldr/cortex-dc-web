@@ -57,7 +57,7 @@ This platform serves as the central hub for Domain Consultants to:
 
 1. **Manage Proof of Value (POV) Engagements**: Track multi-phase POV initiatives from planning through completion, with automated progress tracking, success metrics calculation, and objective management.
 
-2. **Conduct Technical Risk Reviews (TRR)**: Perform comprehensive technical risk assessments with structured findings management, evidence attachment, validation workflows, and digital signoff capabilities.
+2. **Conduct Technical Resource request (TRR)**: Track and manage technical resource requests 
 
 3. **Track Customer Engagements**: Maintain detailed customer information, project timelines, team assignments, and value realization metrics across all engagements.
 
