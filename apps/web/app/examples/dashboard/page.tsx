@@ -165,47 +165,48 @@ export default function ExampleDashboardPage() {
     { id: 5, name: 'Project Epsilon', status: 'On Hold', priority: 'Medium', progress: 60 },
   ];
 
-  const tableColumns = [
+  const tableColumns: any[] = [
     {
-      id: 'name',
+      accessorKey: 'name',
       header: 'Project Name',
-      accessor: 'name',
     },
     {
-      id: 'status',
+      accessorKey: 'status',
       header: 'Status',
-      accessor: 'status',
-      cell: (value: string) => {
+      cell: ({ row }: any) => {
+        const value = row.getValue('status') as string;
         if (value === 'Active') return <Badge color="success">{value}</Badge>;
         if (value === 'Completed') return <Badge color="info">{value}</Badge>;
         return <Badge color="warning">{value}</Badge>;
       },
     },
     {
-      id: 'priority',
+      accessorKey: 'priority',
       header: 'Priority',
-      accessor: 'priority',
-      cell: (value: string) => {
+      cell: ({ row }: any) => {
+        const value = row.getValue('priority') as string;
         if (value === 'High') return <Badge color="danger">{value}</Badge>;
         if (value === 'Medium') return <Badge color="warning">{value}</Badge>;
         return <Badge color="gray">{value}</Badge>;
       },
     },
     {
-      id: 'progress',
+      accessorKey: 'progress',
       header: 'Progress',
-      accessor: 'progress',
-      cell: (value: number) => (
-        <div className="flex items-center gap-2">
-          <Progress
-            value={value}
-            max={100}
-            color={value === 100 ? 'success' : 'primary'}
-            className="h-1"
-          />
-          <span className="text-sm text-gray-600">{value}%</span>
-        </div>
-      ),
+      cell: ({ row }: any) => {
+        const value = row.getValue('progress') as number;
+        return (
+          <div className="flex items-center gap-2">
+            <Progress
+              value={value}
+              max={100}
+              color={value === 100 ? 'success' : 'primary'}
+              className="h-1"
+            />
+            <span className="text-sm text-gray-600">{value}%</span>
+          </div>
+        );
+      },
     },
   ];
 
@@ -416,7 +417,7 @@ export default function ExampleDashboardPage() {
               <CardDescription>Latest updates and changes</CardDescription>
             </CardHeader>
             <CardContent>
-              <ActivityFeed activities={activities} maxItems={5} />
+              <ActivityFeed activities={activities} limit={5} />
             </CardContent>
           </Card>
         </div>
