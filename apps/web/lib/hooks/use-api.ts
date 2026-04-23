@@ -306,10 +306,17 @@ export function useCreateTRR() {
 }
 
 /**
- * Hook for updating TRR
+ * Hook for updating TRR (full replacement)
  */
 export function useUpdateTRR() {
   return useUpdateData('trrs');
+}
+
+/**
+ * Hook for patching TRR (partial update - recommended)
+ */
+export function usePatchTRR() {
+  return usePatchData('trrs');
 }
 
 /**

@@ -19,7 +19,7 @@ import {
   useToast,
   ToastContainer,
 } from '@cortex-dc/ui';
-import { useTRR, useUpdateTRR, useDeleteTRR } from '@/lib/hooks/use-api';
+import { useTRR, usePatchTRR, useDeleteTRR } from '@/lib/hooks/use-api';
 import {
   ArrowLeft,
   Edit,
@@ -65,8 +65,8 @@ function TRRDetailContent() {
   // Fetch TRR data using SWR
   const { data: trr, isLoading, isError, error, mutate } = useTRR(id);
 
-  // Update and delete hooks
-  const { update: updateTRR, isUpdating } = useUpdateTRR();
+  // Patch and delete hooks (using PATCH for partial updates to preserve other fields)
+  const { patch: patchTRR, isPatching } = usePatchTRR();
   const { deleteItem: deleteTRR, isDeleting } = useDeleteTRR();
 
   // Form state for editing
@@ -131,7 +131,7 @@ function TRRDetailContent() {
         return;
       }
 
-      // Prepare update data
+      // Prepare update data (partial update to preserve fields like findings/recommendations/approvals)
       const updates = {
         title: formData.title.trim(),
         description: formData.description?.trim() || '',
@@ -145,8 +145,8 @@ function TRRDetailContent() {
         updatedAt: new Date().toISOString(),
       };
 
-      // Call update API
-      await updateTRR({ id, data: updates });
+      // Use PATCH to only update specified fields, preserving others
+      await patchTRR({ id, updates });
 
       // Revalidate and exit edit mode
       await mutate();
@@ -380,15 +380,15 @@ function TRRDetailContent() {
             </>
           ) : (
             <>
-              <Button onClick={handleSave} disabled={isSaving || isUpdating}>
-                {isSaving || isUpdating ? (
+              <Button onClick={handleSave} disabled={isSaving || isPatching}>
+                {isSaving || isPatching ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <Save className="w-4 h-4 mr-2" />
                 )}
-                {isSaving || isUpdating ? 'Saving...' : 'Save'}
+                {isSaving || isPatching ? 'Saving...' : 'Save'}
               </Button>
-              <Button variant="outline" onClick={handleCancel} disabled={isSaving || isUpdating}>
+              <Button variant="outline" onClick={handleCancel} disabled={isSaving || isPatching}>
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
