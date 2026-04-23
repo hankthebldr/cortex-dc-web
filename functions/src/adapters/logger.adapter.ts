@@ -20,26 +20,26 @@ export interface Logger {
 class ConsoleLogger implements Logger {
   private formatMessage(level: string, message: string | object, ...args: any[]): string {
     const timestamp = new Date().toISOString();
-    const msg = typeof message === 'object' ? JSON.stringify(message) : message;
-    const extra = args.length > 0 ? ' ' + JSON.stringify(args) : '';
+    const msg = typeof message === "object" ? JSON.stringify(message) : message;
+    const extra = args.length > 0 ? " " + JSON.stringify(args) : "";
     return `${timestamp} [${level.toUpperCase()}] ${msg}${extra}`;
   }
 
   info(message: string | object, ...args: any[]) {
-    console.log(this.formatMessage('info', message, ...args));
+    console.log(this.formatMessage("info", message, ...args));
   }
 
   warn(message: string | object, ...args: any[]) {
-    console.warn(this.formatMessage('warn', message, ...args));
+    console.warn(this.formatMessage("warn", message, ...args));
   }
 
   error(message: string | object, ...args: any[]) {
-    console.error(this.formatMessage('error', message, ...args));
+    console.error(this.formatMessage("error", message, ...args));
   }
 
   debug(message: string | object, ...args: any[]) {
-    if (process.env.DEBUG || process.env.NODE_ENV === 'development') {
-      console.debug(this.formatMessage('debug', message, ...args));
+    if (process.env.DEBUG || process.env.NODE_ENV === "development") {
+      console.debug(this.formatMessage("debug", message, ...args));
     }
   }
 }
@@ -54,9 +54,9 @@ class FirebaseLogger implements Logger {
   constructor() {
     try {
       // Dynamic import to avoid errors if firebase-functions not installed
-      this.logger = require('firebase-functions/logger');
+      this.logger = require("firebase-functions/logger");
     } catch (error) {
-      console.warn('firebase-functions/logger not available, falling back to console');
+      console.warn("firebase-functions/logger not available, falling back to console");
       this.logger = null;
     }
   }
@@ -65,7 +65,7 @@ class FirebaseLogger implements Logger {
     if (this.logger) {
       this.logger.info(message, ...args);
     } else {
-      console.log('[INFO]', message, ...args);
+      console.log("[INFO]", message, ...args);
     }
   }
 
@@ -73,7 +73,7 @@ class FirebaseLogger implements Logger {
     if (this.logger) {
       this.logger.warn(message, ...args);
     } else {
-      console.warn('[WARN]', message, ...args);
+      console.warn("[WARN]", message, ...args);
     }
   }
 
@@ -81,7 +81,7 @@ class FirebaseLogger implements Logger {
     if (this.logger) {
       this.logger.error(message, ...args);
     } else {
-      console.error('[ERROR]', message, ...args);
+      console.error("[ERROR]", message, ...args);
     }
   }
 
@@ -89,8 +89,8 @@ class FirebaseLogger implements Logger {
     if (this.logger) {
       this.logger.debug(message, ...args);
     } else {
-      if (process.env.DEBUG || process.env.NODE_ENV === 'development') {
-        console.debug('[DEBUG]', message, ...args);
+      if (process.env.DEBUG || process.env.NODE_ENV === "development") {
+        console.debug("[DEBUG]", message, ...args);
       }
     }
   }
@@ -109,7 +109,7 @@ export function getLogger(): Logger {
 
   const mode = process.env.DEPLOYMENT_MODE;
 
-  if (mode === 'firebase') {
+  if (mode === "firebase") {
     loggerInstance = new FirebaseLogger();
   } else {
     // Default to console logger for standalone mode
