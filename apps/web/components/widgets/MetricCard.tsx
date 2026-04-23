@@ -110,7 +110,7 @@ export function MetricCard({
   if (loading) {
     return (
       <Card className={cn('relative overflow-hidden', className)}>
-        <CardContent padding="md" className="space-y-3">
+        <CardContent  className="space-y-3">
           <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
           <div className="h-8 w-32 bg-gray-200 rounded animate-pulse" />
           <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
@@ -128,7 +128,7 @@ export function MetricCard({
       )}
       onClick={onClick}
     >
-      <CardContent padding="md">
+      <CardContent >
         <div className="flex items-start justify-between">
           <div className="flex-1 space-y-2">
             {/* Label */}
