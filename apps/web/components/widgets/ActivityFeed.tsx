@@ -79,7 +79,7 @@ export function ActivityFeed({
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
         </CardHeader>
-        <CardContent padding="md">
+        <CardContent>
           <div className="space-y-4">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="flex gap-3">
@@ -102,7 +102,7 @@ export function ActivityFeed({
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
         </CardHeader>
-        <CardContent padding="md">
+        <CardContent>
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <FileText className="h-12 w-12 text-gray-300 mb-3" />
             <p className="text-sm text-gray-500">No recent activity</p>
@@ -117,7 +117,7 @@ export function ActivityFeed({
       <CardHeader>
         <CardTitle>Recent Activity</CardTitle>
       </CardHeader>
-      <CardContent padding="md">
+      <CardContent>
         <div className="flow-root">
           <ul className="-mb-8">
             {displayedActivities.map((activity, activityIdx) => (
