@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { terraformGenerationService } from '@cortex/db';
 
+// Force dynamic rendering - don't attempt to prerender this API route
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/scenarios/[id]/terraform
  * Generate and download Terraform configuration for a scenario

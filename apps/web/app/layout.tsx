@@ -1,8 +1,5 @@
-import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
   title: 'Cortex DC Portal',
@@ -16,7 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className="font-sans antialiased">
         <Providers>
           <main className="min-h-screen">{children}</main>
         </Providers>
