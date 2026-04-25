@@ -43,10 +43,20 @@ __export(index_exports, {
   Input: () => Input,
   Navigation: () => Navigation,
   POVCard: () => POVCard,
+  Select: () => Select,
+  SelectContent: () => SelectContent,
+  SelectGroup: () => SelectGroup,
+  SelectItem: () => SelectItem,
+  SelectLabel: () => SelectLabel,
+  SelectSeparator: () => SelectSeparator,
+  SelectTrigger: () => SelectTrigger,
+  SelectValue: () => SelectValue,
   Spinner: () => Spinner,
   TRRStatus: () => TRRStatus,
   Terminal: () => Terminal,
   Textarea: () => Textarea,
+  Toast: () => Toast,
+  ToastContainer: () => ToastContainer,
   badgeVariants: () => badgeVariants,
   buttonVariants: () => buttonVariants,
   camelToTitle: () => camelToTitle,
@@ -68,7 +78,8 @@ __export(index_exports, {
   spinnerVariants: () => spinnerVariants,
   throttle: () => throttle,
   truncate: () => truncate,
-  useTerminal: () => useTerminal
+  useTerminal: () => useTerminal,
+  useToast: () => useToast
 });
 module.exports = __toCommonJS(index_exports);
 
@@ -446,11 +457,254 @@ var Spinner = React6.forwardRef(
 );
 Spinner.displayName = "Spinner";
 
-// src/components/layout/AppShell.tsx
+// src/components/ui/select.tsx
 var React7 = __toESM(require("react"));
-var AppShell = React7.forwardRef(
+var SelectPrimitive = __toESM(require("@radix-ui/react-select"));
+var import_lucide_react3 = require("lucide-react");
+var Select = SelectPrimitive.Root;
+var SelectGroup = SelectPrimitive.Group;
+var SelectValue = SelectPrimitive.Value;
+var SelectTrigger = React7.forwardRef(({ className, children, ...props }, ref) => /* @__PURE__ */ React7.createElement(
+  SelectPrimitive.Trigger,
+  {
+    ref,
+    className: cn(
+      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+      className
+    ),
+    ...props
+  },
+  children,
+  /* @__PURE__ */ React7.createElement(SelectPrimitive.Icon, { asChild: true }, /* @__PURE__ */ React7.createElement(import_lucide_react3.ChevronDown, { className: "h-4 w-4 opacity-50" }))
+));
+SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
+var SelectScrollUpButton = React7.forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ React7.createElement(
+  SelectPrimitive.ScrollUpButton,
+  {
+    ref,
+    className: cn(
+      "flex cursor-default items-center justify-center py-1",
+      className
+    ),
+    ...props
+  },
+  /* @__PURE__ */ React7.createElement(import_lucide_react3.ChevronUp, { className: "h-4 w-4" })
+));
+SelectScrollUpButton.displayName = SelectPrimitive.ScrollUpButton.displayName;
+var SelectScrollDownButton = React7.forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ React7.createElement(
+  SelectPrimitive.ScrollDownButton,
+  {
+    ref,
+    className: cn(
+      "flex cursor-default items-center justify-center py-1",
+      className
+    ),
+    ...props
+  },
+  /* @__PURE__ */ React7.createElement(import_lucide_react3.ChevronDown, { className: "h-4 w-4" })
+));
+SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName;
+var SelectContent = React7.forwardRef(({ className, children, position = "popper", ...props }, ref) => /* @__PURE__ */ React7.createElement(SelectPrimitive.Portal, null, /* @__PURE__ */ React7.createElement(
+  SelectPrimitive.Content,
+  {
+    ref,
+    className: cn(
+      "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+      position === "popper" && "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+      className
+    ),
+    position,
+    ...props
+  },
+  /* @__PURE__ */ React7.createElement(SelectScrollUpButton, null),
+  /* @__PURE__ */ React7.createElement(
+    SelectPrimitive.Viewport,
+    {
+      className: cn(
+        "p-1",
+        position === "popper" && "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]"
+      )
+    },
+    children
+  ),
+  /* @__PURE__ */ React7.createElement(SelectScrollDownButton, null)
+)));
+SelectContent.displayName = SelectPrimitive.Content.displayName;
+var SelectLabel = React7.forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ React7.createElement(
+  SelectPrimitive.Label,
+  {
+    ref,
+    className: cn("py-1.5 pl-8 pr-2 text-sm font-semibold", className),
+    ...props
+  }
+));
+SelectLabel.displayName = SelectPrimitive.Label.displayName;
+var SelectItem = React7.forwardRef(({ className, children, ...props }, ref) => /* @__PURE__ */ React7.createElement(
+  SelectPrimitive.Item,
+  {
+    ref,
+    className: cn(
+      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      className
+    ),
+    ...props
+  },
+  /* @__PURE__ */ React7.createElement("span", { className: "absolute left-2 flex h-3.5 w-3.5 items-center justify-center" }, /* @__PURE__ */ React7.createElement(SelectPrimitive.ItemIndicator, null, /* @__PURE__ */ React7.createElement(import_lucide_react3.Check, { className: "h-4 w-4" }))),
+  /* @__PURE__ */ React7.createElement(SelectPrimitive.ItemText, null, children)
+));
+SelectItem.displayName = SelectPrimitive.Item.displayName;
+var SelectSeparator = React7.forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ React7.createElement(
+  SelectPrimitive.Separator,
+  {
+    ref,
+    className: cn("-mx-1 my-1 h-px bg-muted", className),
+    ...props
+  }
+));
+SelectSeparator.displayName = SelectPrimitive.Separator.displayName;
+
+// src/components/primitives/Toast.tsx
+var import_react = __toESM(require("react"));
+var import_lucide_react4 = require("lucide-react");
+function Toast({
+  id,
+  variant = "info",
+  title,
+  message,
+  duration = 5e3,
+  onClose,
+  action
+}) {
+  const [isVisible, setIsVisible] = (0, import_react.useState)(true);
+  const [isExiting, setIsExiting] = (0, import_react.useState)(false);
+  (0, import_react.useEffect)(() => {
+    if (duration > 0) {
+      const timer = setTimeout(() => {
+        handleClose();
+      }, duration);
+      return () => clearTimeout(timer);
+    }
+  }, [duration]);
+  const handleClose = () => {
+    setIsExiting(true);
+    setTimeout(() => {
+      setIsVisible(false);
+      onClose?.();
+    }, 300);
+  };
+  if (!isVisible) return null;
+  const config = {
+    success: {
+      bg: "bg-success-50",
+      border: "border-success-500",
+      text: "text-success-800",
+      icon: import_lucide_react4.CheckCircle2,
+      iconColor: "text-success-500"
+    },
+    error: {
+      bg: "bg-error-50",
+      border: "border-error-500",
+      text: "text-error-800",
+      icon: import_lucide_react4.AlertCircle,
+      iconColor: "text-error-500"
+    },
+    warning: {
+      bg: "bg-warning-50",
+      border: "border-warning-500",
+      text: "text-warning-800",
+      icon: import_lucide_react4.AlertTriangle,
+      iconColor: "text-warning-500"
+    },
+    info: {
+      bg: "bg-info-50",
+      border: "border-info-500",
+      text: "text-info-800",
+      icon: import_lucide_react4.Info,
+      iconColor: "text-info-500"
+    }
+  };
+  const { bg, border, text, icon: Icon2, iconColor } = config[variant];
+  return /* @__PURE__ */ import_react.default.createElement(
+    "div",
+    {
+      className: `
+        ${bg} ${border} border-l-4 rounded-lg shadow-lg p-4 max-w-md
+        transform transition-all duration-300
+        ${isExiting ? "translate-x-full opacity-0" : "translate-x-0 opacity-100"}
+        animate-slide-in-right
+      `
+    },
+    /* @__PURE__ */ import_react.default.createElement("div", { className: "flex items-start gap-3" }, /* @__PURE__ */ import_react.default.createElement(Icon2, { className: `w-5 h-5 ${iconColor} flex-shrink-0 mt-0.5` }), /* @__PURE__ */ import_react.default.createElement("div", { className: "flex-1 min-w-0" }, title && /* @__PURE__ */ import_react.default.createElement("h4", { className: `text-sm font-semibold ${text} mb-1` }, title), /* @__PURE__ */ import_react.default.createElement("p", { className: `text-sm ${text}` }, message), action && /* @__PURE__ */ import_react.default.createElement(
+      "button",
+      {
+        onClick: action.onClick,
+        className: `mt-2 text-sm font-medium ${text} underline hover:no-underline`
+      },
+      action.label
+    )), /* @__PURE__ */ import_react.default.createElement(
+      "button",
+      {
+        onClick: handleClose,
+        className: `${text} hover:opacity-75 transition-opacity flex-shrink-0`,
+        "aria-label": "Close"
+      },
+      /* @__PURE__ */ import_react.default.createElement(import_lucide_react4.X, { className: "w-4 h-4" })
+    ))
+  );
+}
+function ToastContainer({
+  toasts,
+  position = "top-right",
+  onRemove
+}) {
+  const positionClasses = {
+    "top-right": "top-4 right-4",
+    "top-left": "top-4 left-4",
+    "bottom-right": "bottom-4 right-4",
+    "bottom-left": "bottom-4 left-4",
+    "top-center": "top-4 left-1/2 transform -translate-x-1/2",
+    "bottom-center": "bottom-4 left-1/2 transform -translate-x-1/2"
+  };
+  return /* @__PURE__ */ import_react.default.createElement("div", { className: `fixed ${positionClasses[position]} z-50 flex flex-col gap-3 max-w-md` }, toasts.map((toast, index) => /* @__PURE__ */ import_react.default.createElement(
+    Toast,
+    {
+      key: toast.id || index,
+      ...toast,
+      onClose: () => toast.id && onRemove(toast.id)
+    }
+  )));
+}
+function useToast() {
+  const [toasts, setToasts] = (0, import_react.useState)([]);
+  const addToast = (toast) => {
+    const id = `toast-${Date.now()}-${Math.random()}`;
+    setToasts((prev) => [...prev, { ...toast, id }]);
+  };
+  const removeToast = (id) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  };
+  const clearToasts = () => {
+    setToasts([]);
+  };
+  return {
+    toasts,
+    addToast,
+    removeToast,
+    clearToasts,
+    toast: {
+      success: (message, title) => addToast({ variant: "success", message, title }),
+      error: (message, title) => addToast({ variant: "error", message, title }),
+      warning: (message, title) => addToast({ variant: "warning", message, title }),
+      info: (message, title) => addToast({ variant: "info", message, title })
+    }
+  };
+}
+
+// src/components/layout/AppShell.tsx
+var React9 = __toESM(require("react"));
+var AppShell = React9.forwardRef(
   ({ children, sidebar, header, footer, className }, ref) => {
-    return /* @__PURE__ */ React7.createElement(
+    return /* @__PURE__ */ React9.createElement(
       "div",
       {
         ref,
@@ -459,8 +713,8 @@ var AppShell = React7.forwardRef(
           className
         )
       },
-      header && /* @__PURE__ */ React7.createElement("header", { className: "sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60" }, header),
-      /* @__PURE__ */ React7.createElement("div", { className: "flex flex-1" }, sidebar && /* @__PURE__ */ React7.createElement("aside", { className: "fixed left-0 top-[var(--header-height,0)] z-30 h-[calc(100vh-var(--header-height,0))] w-64 shrink-0 border-r bg-background transition-all duration-300" }, /* @__PURE__ */ React7.createElement("div", { className: "h-full overflow-y-auto scrollbar-thin" }, sidebar)), /* @__PURE__ */ React7.createElement(
+      header && /* @__PURE__ */ React9.createElement("header", { className: "sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60" }, header),
+      /* @__PURE__ */ React9.createElement("div", { className: "flex flex-1" }, sidebar && /* @__PURE__ */ React9.createElement("aside", { className: "fixed left-0 top-[var(--header-height,0)] z-30 h-[calc(100vh-var(--header-height,0))] w-64 shrink-0 border-r bg-background transition-all duration-300" }, /* @__PURE__ */ React9.createElement("div", { className: "h-full overflow-y-auto scrollbar-thin" }, sidebar)), /* @__PURE__ */ React9.createElement(
         "main",
         {
           className: cn(
@@ -468,98 +722,98 @@ var AppShell = React7.forwardRef(
             sidebar && "ml-64"
           )
         },
-        /* @__PURE__ */ React7.createElement("div", { className: "container mx-auto p-6" }, children)
+        /* @__PURE__ */ React9.createElement("div", { className: "container mx-auto p-6" }, children)
       )),
-      footer && /* @__PURE__ */ React7.createElement("footer", { className: "border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60" }, footer)
+      footer && /* @__PURE__ */ React9.createElement("footer", { className: "border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60" }, footer)
     );
   }
 );
 AppShell.displayName = "AppShell";
 
 // src/components/layout/Navigation.tsx
-var React8 = __toESM(require("react"));
-var import_lucide_react3 = require("lucide-react");
+var React10 = __toESM(require("react"));
+var import_lucide_react5 = require("lucide-react");
 var navigationItems = [
   {
     id: "dashboard",
     label: "Dashboard",
-    icon: import_lucide_react3.LayoutDashboard,
+    icon: import_lucide_react5.LayoutDashboard,
     href: "/dashboard",
     roles: ["user", "management", "admin"]
   },
   {
     id: "pov",
     label: "POV Management",
-    icon: import_lucide_react3.FileText,
+    icon: import_lucide_react5.FileText,
     href: "/pov",
     roles: ["user", "management", "admin"],
     children: [
-      { id: "pov-active", label: "Active POVs", icon: import_lucide_react3.FileText, href: "/pov/active", roles: ["user", "management", "admin"] },
-      { id: "pov-templates", label: "Templates", icon: import_lucide_react3.Folder, href: "/pov/templates", roles: ["management", "admin"] },
-      { id: "pov-analytics", label: "Analytics", icon: import_lucide_react3.BarChart3, href: "/pov/analytics", roles: ["management", "admin"] }
+      { id: "pov-active", label: "Active POVs", icon: import_lucide_react5.FileText, href: "/pov/active", roles: ["user", "management", "admin"] },
+      { id: "pov-templates", label: "Templates", icon: import_lucide_react5.Folder, href: "/pov/templates", roles: ["management", "admin"] },
+      { id: "pov-analytics", label: "Analytics", icon: import_lucide_react5.BarChart3, href: "/pov/analytics", roles: ["management", "admin"] }
     ]
   },
   {
     id: "trr",
     label: "TRR Management",
-    icon: import_lucide_react3.CheckSquare,
+    icon: import_lucide_react5.CheckSquare,
     href: "/trr",
     roles: ["user", "management", "admin"],
     children: [
-      { id: "trr-active", label: "Active TRRs", icon: import_lucide_react3.CheckSquare, href: "/trr/active", roles: ["user", "management", "admin"] },
-      { id: "trr-validation", label: "Validation Queue", icon: import_lucide_react3.Shield, href: "/trr/validation", roles: ["management", "admin"] },
-      { id: "trr-reports", label: "Reporting", icon: import_lucide_react3.BarChart3, href: "/trr/reports", roles: ["management", "admin"] }
+      { id: "trr-active", label: "Active TRRs", icon: import_lucide_react5.CheckSquare, href: "/trr/active", roles: ["user", "management", "admin"] },
+      { id: "trr-validation", label: "Validation Queue", icon: import_lucide_react5.Shield, href: "/trr/validation", roles: ["management", "admin"] },
+      { id: "trr-reports", label: "Reporting", icon: import_lucide_react5.BarChart3, href: "/trr/reports", roles: ["management", "admin"] }
     ]
   },
   {
     id: "scenarios",
     label: "Scenario Engine",
-    icon: import_lucide_react3.Play,
+    icon: import_lucide_react5.Play,
     href: "/scenarios",
     roles: ["user", "management", "admin"],
     children: [
-      { id: "scenarios-library", label: "Scenario Library", icon: import_lucide_react3.Folder, href: "/scenarios/library", roles: ["user", "management", "admin"] },
-      { id: "scenarios-monitor", label: "Execution Monitor", icon: import_lucide_react3.BarChart3, href: "/scenarios/monitor", roles: ["user", "management", "admin"] },
-      { id: "scenarios-archive", label: "Results Archive", icon: import_lucide_react3.FileText, href: "/scenarios/archive", roles: ["management", "admin"] }
+      { id: "scenarios-library", label: "Scenario Library", icon: import_lucide_react5.Folder, href: "/scenarios/library", roles: ["user", "management", "admin"] },
+      { id: "scenarios-monitor", label: "Execution Monitor", icon: import_lucide_react5.BarChart3, href: "/scenarios/monitor", roles: ["user", "management", "admin"] },
+      { id: "scenarios-archive", label: "Results Archive", icon: import_lucide_react5.FileText, href: "/scenarios/archive", roles: ["management", "admin"] }
     ]
   },
   {
     id: "content",
     label: "Content Hub",
-    icon: import_lucide_react3.Folder,
+    icon: import_lucide_react5.Folder,
     href: "/content",
     roles: ["user", "management", "admin"]
   },
   {
     id: "terminal",
     label: "Terminal",
-    icon: import_lucide_react3.Terminal,
+    icon: import_lucide_react5.Terminal,
     href: "/terminal",
     roles: ["user", "management", "admin"]
   },
   {
     id: "integrations",
     label: "Integrations",
-    icon: import_lucide_react3.Settings,
+    icon: import_lucide_react5.Settings,
     href: "/integrations",
     roles: ["management", "admin"]
   },
   {
     id: "admin",
     label: "Administration",
-    icon: import_lucide_react3.Users,
+    icon: import_lucide_react5.Users,
     href: "/admin",
     roles: ["admin"],
     children: [
-      { id: "admin-users", label: "User Management", icon: import_lucide_react3.Users, href: "/admin/users", roles: ["admin"] },
-      { id: "admin-analytics", label: "System Analytics", icon: import_lucide_react3.BarChart3, href: "/admin/analytics", roles: ["admin"] },
-      { id: "admin-config", label: "Configuration", icon: import_lucide_react3.Settings, href: "/admin/config", roles: ["admin"] }
+      { id: "admin-users", label: "User Management", icon: import_lucide_react5.Users, href: "/admin/users", roles: ["admin"] },
+      { id: "admin-analytics", label: "System Analytics", icon: import_lucide_react5.BarChart3, href: "/admin/analytics", roles: ["admin"] },
+      { id: "admin-config", label: "Configuration", icon: import_lucide_react5.Settings, href: "/admin/config", roles: ["admin"] }
     ]
   }
 ];
-var Navigation = React8.forwardRef(
+var Navigation = React10.forwardRef(
   ({ currentPath, userRole, onNavigate, className }, ref) => {
-    const [expandedItems, setExpandedItems] = React8.useState(/* @__PURE__ */ new Set());
+    const [expandedItems, setExpandedItems] = React10.useState(/* @__PURE__ */ new Set());
     const toggleExpanded = (itemId) => {
       const newExpanded = new Set(expandedItems);
       if (newExpanded.has(itemId)) {
@@ -577,8 +831,8 @@ var Navigation = React8.forwardRef(
       const isActive = currentPath === item.href || currentPath.startsWith(item.href + "/");
       const hasChildren = item.children && item.children.length > 0;
       const isExpanded = expandedItems.has(item.id);
-      const Icon = item.icon;
-      return /* @__PURE__ */ React8.createElement("div", { key: item.id, className: "mb-1" }, /* @__PURE__ */ React8.createElement(
+      const Icon2 = item.icon;
+      return /* @__PURE__ */ React10.createElement("div", { key: item.id, className: "mb-1" }, /* @__PURE__ */ React10.createElement(
         "button",
         {
           onClick: () => {
@@ -594,10 +848,10 @@ var Navigation = React8.forwardRef(
             level > 0 && "ml-4 pl-6"
           )
         },
-        /* @__PURE__ */ React8.createElement(Icon, { className: "h-4 w-4 shrink-0" }),
-        /* @__PURE__ */ React8.createElement("span", { className: "flex-1 truncate" }, item.label),
-        item.badge && /* @__PURE__ */ React8.createElement(Badge, { variant: "secondary", className: "ml-auto" }, item.badge),
-        hasChildren && /* @__PURE__ */ React8.createElement(
+        /* @__PURE__ */ React10.createElement(Icon2, { className: "h-4 w-4 shrink-0" }),
+        /* @__PURE__ */ React10.createElement("span", { className: "flex-1 truncate" }, item.label),
+        item.badge && /* @__PURE__ */ React10.createElement(Badge, { variant: "secondary", className: "ml-auto" }, item.badge),
+        hasChildren && /* @__PURE__ */ React10.createElement(
           "svg",
           {
             className: cn(
@@ -608,17 +862,17 @@ var Navigation = React8.forwardRef(
             stroke: "currentColor",
             viewBox: "0 0 24 24"
           },
-          /* @__PURE__ */ React8.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9 5l7 7-7 7" })
+          /* @__PURE__ */ React10.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9 5l7 7-7 7" })
         )
-      ), hasChildren && isExpanded && /* @__PURE__ */ React8.createElement("div", { className: "mt-1 space-y-1" }, item.children.map((child) => renderNavigationItem(child, level + 1))));
+      ), hasChildren && isExpanded && /* @__PURE__ */ React10.createElement("div", { className: "mt-1 space-y-1" }, item.children.map((child) => renderNavigationItem(child, level + 1))));
     };
-    return /* @__PURE__ */ React8.createElement(
+    return /* @__PURE__ */ React10.createElement(
       "nav",
       {
         ref,
         className: cn("flex flex-col space-y-2 p-4", className)
       },
-      /* @__PURE__ */ React8.createElement("div", { className: "mb-6" }, /* @__PURE__ */ React8.createElement("h2", { className: "cortex-gradient-text text-lg font-semibold tracking-tight" }, "Cortex DC"), /* @__PURE__ */ React8.createElement("p", { className: "text-sm text-muted-foreground" }, "Domain Consultant Platform")),
+      /* @__PURE__ */ React10.createElement("div", { className: "mb-6" }, /* @__PURE__ */ React10.createElement("h2", { className: "cortex-gradient-text text-lg font-semibold tracking-tight" }, "Cortex DC"), /* @__PURE__ */ React10.createElement("p", { className: "text-sm text-muted-foreground" }, "Domain Consultant Platform")),
       navigationItems.map((item) => renderNavigationItem(item))
     );
   }
@@ -626,43 +880,96 @@ var Navigation = React8.forwardRef(
 Navigation.displayName = "Navigation";
 
 // src/components/Terminal.tsx
-var import_react = __toESM(require("react"));
+var import_react2 = __toESM(require("react"));
 var Terminal = ({ output = [], className = "" }) => {
-  return /* @__PURE__ */ import_react.default.createElement("div", { className: `bg-black text-green-400 font-mono p-4 rounded ${className}` }, output.map((line, index) => /* @__PURE__ */ import_react.default.createElement("div", { key: index }, line)));
+  return /* @__PURE__ */ import_react2.default.createElement("div", { className: `bg-black text-green-400 font-mono p-4 rounded ${className}` }, output.map((line, index) => /* @__PURE__ */ import_react2.default.createElement("div", { key: index }, line)));
 };
 
 // src/components/pov/POVCard.tsx
-var import_react2 = __toESM(require("react"));
+var import_react3 = __toESM(require("react"));
 var POVCard = ({ title, description, className }) => {
-  return /* @__PURE__ */ import_react2.default.createElement(Card, { className }, /* @__PURE__ */ import_react2.default.createElement("h3", { className: "text-lg font-semibold mb-2" }, title), description && /* @__PURE__ */ import_react2.default.createElement("p", { className: "text-gray-600" }, description));
+  return /* @__PURE__ */ import_react3.default.createElement(Card, { className }, /* @__PURE__ */ import_react3.default.createElement("h3", { className: "text-lg font-semibold mb-2" }, title), description && /* @__PURE__ */ import_react3.default.createElement("p", { className: "text-gray-600" }, description));
 };
 
 // src/components/trr/TRRStatus.tsx
-var import_react3 = __toESM(require("react"));
-var statusColors = {
-  pending: "bg-yellow-100 text-yellow-800",
-  "in-progress": "bg-blue-100 text-blue-800",
-  completed: "bg-green-100 text-green-800",
-  failed: "bg-red-100 text-red-800"
+var import_react4 = __toESM(require("react"));
+var statusConfig = {
+  draft: {
+    color: "bg-gray-100 text-gray-800 border-gray-300",
+    label: "Draft",
+    icon: "\u{1F4DD}"
+  },
+  pending: {
+    color: "bg-yellow-100 text-yellow-800 border-yellow-300",
+    label: "Pending",
+    icon: "\u23F3"
+  },
+  "in-progress": {
+    color: "bg-blue-100 text-blue-800 border-blue-300",
+    label: "In Progress",
+    icon: "\u{1F504}"
+  },
+  in_review: {
+    color: "bg-purple-100 text-purple-800 border-purple-300",
+    label: "In Review",
+    icon: "\u{1F440}"
+  },
+  validated: {
+    color: "bg-teal-100 text-teal-800 border-teal-300",
+    label: "Validated",
+    icon: "\u2713"
+  },
+  approved: {
+    color: "bg-green-100 text-green-800 border-green-300",
+    label: "Approved",
+    icon: "\u2705"
+  },
+  rejected: {
+    color: "bg-red-100 text-red-800 border-red-300",
+    label: "Rejected",
+    icon: "\u274C"
+  },
+  completed: {
+    color: "bg-green-100 text-green-800 border-green-300",
+    label: "Completed",
+    icon: "\u{1F389}"
+  },
+  failed: {
+    color: "bg-red-100 text-red-800 border-red-300",
+    label: "Failed",
+    icon: "\u26A0\uFE0F"
+  }
 };
-var TRRStatus = ({ status, className = "" }) => {
-  return /* @__PURE__ */ import_react3.default.createElement("span", { className: `px-2 py-1 rounded-full text-xs font-medium ${statusColors[status]} ${className}` }, status.charAt(0).toUpperCase() + status.slice(1));
+var TRRStatus = ({
+  status,
+  className = "",
+  showIcon = false
+}) => {
+  const config = statusConfig[status] || statusConfig.draft;
+  return /* @__PURE__ */ import_react4.default.createElement(
+    "span",
+    {
+      className: `inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${config.color} ${className}`
+    },
+    showIcon && /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-xs" }, config.icon),
+    /* @__PURE__ */ import_react4.default.createElement("span", null, config.label)
+  );
 };
 
 // src/hooks/useTerminal.ts
-var import_react4 = require("react");
+var import_react5 = require("react");
 var useTerminal = () => {
-  const [output, setOutput] = (0, import_react4.useState)([]);
-  const [isLoading, setIsLoading] = (0, import_react4.useState)(false);
-  const [error, setError] = (0, import_react4.useState)(null);
-  const addLine = (0, import_react4.useCallback)((line) => {
+  const [output, setOutput] = (0, import_react5.useState)([]);
+  const [isLoading, setIsLoading] = (0, import_react5.useState)(false);
+  const [error, setError] = (0, import_react5.useState)(null);
+  const addLine = (0, import_react5.useCallback)((line) => {
     setOutput((prev) => [...prev, line]);
   }, []);
-  const clear = (0, import_react4.useCallback)(() => {
+  const clear = (0, import_react5.useCallback)(() => {
     setOutput([]);
     setError(null);
   }, []);
-  const setLoading = (0, import_react4.useCallback)((loading) => {
+  const setLoading = (0, import_react5.useCallback)((loading) => {
     setIsLoading(loading);
   }, []);
   return {
@@ -689,10 +996,20 @@ var useTerminal = () => {
   Input,
   Navigation,
   POVCard,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
   Spinner,
   TRRStatus,
   Terminal,
   Textarea,
+  Toast,
+  ToastContainer,
   badgeVariants,
   buttonVariants,
   camelToTitle,
@@ -714,6 +1031,7 @@ var useTerminal = () => {
   spinnerVariants,
   throttle,
   truncate,
-  useTerminal
+  useTerminal,
+  useToast
 });
 //# sourceMappingURL=index.js.map

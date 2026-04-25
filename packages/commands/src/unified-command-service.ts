@@ -728,13 +728,14 @@ export class UnifiedCommandService {
           case 'string':
             sanitized[paramDef.name] = String(value).trim();
             break;
-          case 'number':
+          case 'number': {
             const num = Number(value);
             if (isNaN(num)) {
               throw new Error(`Invalid number for parameter: ${paramDef.name}`);
             }
             sanitized[paramDef.name] = num;
             break;
+          }
           case 'boolean':
             sanitized[paramDef.name] = Boolean(value);
             break;

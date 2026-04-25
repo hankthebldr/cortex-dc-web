@@ -6,20 +6,20 @@
  * The actual logic is in standalone Express handlers.
  */
 
-import { onRequest } from 'firebase-functions/v2/https';
-import { setGlobalOptions } from 'firebase-functions/v2/options';
-import { healthCheckHandler } from './handlers/health.handler';
-import { echoHandler } from './handlers/echo.handler';
-import { environmentHandler } from './handlers/environment.handler';
+import {onRequest} from "firebase-functions/v2/https";
+import {setGlobalOptions} from "firebase-functions/v2/options";
+import {healthCheckHandler} from "./handlers/health.handler";
+import {echoHandler} from "./handlers/echo.handler";
+import {environmentHandler} from "./handlers/environment.handler";
 
 // Set deployment mode for logger adapter
-process.env.DEPLOYMENT_MODE = 'firebase';
+process.env.DEPLOYMENT_MODE = "firebase";
 
 // Configure Firebase Functions
 setGlobalOptions({
-  region: 'us-central1',
+  region: "us-central1",
   maxInstances: 10,
-  memory: '256MiB',
+  memory: "256MiB",
   timeoutSeconds: 60,
 });
 
