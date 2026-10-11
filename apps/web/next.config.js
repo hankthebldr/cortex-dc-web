@@ -48,7 +48,8 @@ const nextConfig = {
 
   // Server-side rendering for containerized deployment
   // Full Next.js functionality with API routes and SSR
-  output: isFirebase ? 'export' : undefined,
+  // Output configuration (standalone for containerization/SSR)
+  output: isFirebase ? 'standalone' : undefined,
 
   // Image optimization enabled for production
   images: {
