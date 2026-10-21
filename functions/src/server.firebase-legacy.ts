@@ -4,9 +4,9 @@
  * for Kubernetes deployment
  */
 
-import express, { Request, Response } from 'express';
-import * as logger from 'firebase-functions/logger';
-import admin from 'firebase-admin';
+import express, {Request, Response} from "express";
+import * as logger from "firebase-functions/logger";
+import admin from "firebase-admin";
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
@@ -16,20 +16,20 @@ if (!admin.apps.length) {
 }
 
 // Import function handlers
-import { healthCheck, echo, environmentSummary } from './index';
+import {healthCheck, echo, environmentSummary} from "./index";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = process.env.HOST || "0.0.0.0";
 
 // Middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({extended: true}));
 
 // Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
-  res.on('finish', () => {
+  res.on("finish", () => {
     const duration = Date.now() - start;
     logger.info({
       method: req.method,
@@ -44,11 +44,11 @@ app.use((req, res, next) => {
 
 // CORS middleware
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     res.sendStatus(204);
     return;
   }
@@ -83,17 +83,17 @@ function wrapFirebaseFunction(firebaseFunction: any) {
 }
 
 // Health check endpoint (K8s readiness/liveness probes)
-app.get('/health', wrapFirebaseFunction(healthCheck));
-app.get('/healthz', wrapFirebaseFunction(healthCheck));
-app.get('/readyz', wrapFirebaseFunction(healthCheck));
+app.get("/health", wrapFirebaseFunction(healthCheck));
+app.get("/healthz", wrapFirebaseFunction(healthCheck));
+app.get("/readyz", wrapFirebaseFunction(healthCheck));
 
 // Function endpoints
-app.post('/echo', wrapFirebaseFunction(echo));
-app.get('/environment', wrapFirebaseFunction(environmentSummary));
+app.post("/echo", wrapFirebaseFunction(echo));
+app.get("/environment", wrapFirebaseFunction(environmentSummary));
 
 // Metrics endpoint for Prometheus
-app.get('/metrics', (req, res) => {
-  res.set('Content-Type', 'text/plain');
+app.get("/metrics", (req, res) => {
+  res.set("Content-Type", "text/plain");
   res.send(`
 # HELP functions_up Service is up and running
 # TYPE functions_up gauge
@@ -116,7 +116,7 @@ functions_request_duration_seconds_count 100
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({
-    error: 'Not Found',
+    error: "Not Found",
     path: req.path,
     timestamp: new Date().toISOString(),
   });
@@ -124,27 +124,27 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err: Error, req: Request, res: Response, next: any) => {
-  logger.error('Unhandled error:', err);
+  logger.error("Unhandled error:", err);
   res.status(500).json({
-    error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'An error occurred',
+    error: "Internal Server Error",
+    message: process.env.NODE_ENV === "development" ? err.message : "An error occurred",
     timestamp: new Date().toISOString(),
   });
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM signal received: closing HTTP server');
+process.on("SIGTERM", () => {
+  logger.info("SIGTERM signal received: closing HTTP server");
   server.close(() => {
-    logger.info('HTTP server closed');
+    logger.info("HTTP server closed");
     process.exit(0);
   });
 });
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT signal received: closing HTTP server');
+process.on("SIGINT", () => {
+  logger.info("SIGINT signal received: closing HTTP server");
   server.close(() => {
-    logger.info('HTTP server closed');
+    logger.info("HTTP server closed");
     process.exit(0);
   });
 });
@@ -152,8 +152,8 @@ process.on('SIGINT', () => {
 // Start server
 const server = app.listen(PORT, () => {
   logger.info(`🚀 Functions microservice running on ${HOST}:${PORT}`);
-  logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  logger.info(`Version: ${process.env.APP_VERSION || 'dev'}`);
+  logger.info(`Environment: ${process.env.NODE_ENV || "development"}`);
+  logger.info(`Version: ${process.env.APP_VERSION || "dev"}`);
 });
 
 export default app;

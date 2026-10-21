@@ -38,6 +38,14 @@ export function TeamDashboard({ user }: TeamDashboardProps) {
 
   const isLoading = isLoadingMetrics || isLoadingPOVs || isLoadingTRRs || isLoadingTeam;
 
+  // Helper to format assignedTo (supports both string and array)
+  const formatAssignedTo = (value: any): string => {
+    if (!value) return 'Unassigned';
+    if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : 'Unassigned';
+    if (typeof value === 'string') return value;
+    return 'Unassigned';
+  };
+
   // Calculate team metrics
   const teamMetrics: TeamMetrics = metrics?.team || {
     totalTeamMembers: teamMembers.length,
@@ -188,7 +196,7 @@ export function TeamDashboard({ user }: TeamDashboardProps) {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{pov.title || pov.name}</p>
                         <p className="text-xs text-gray-500 mt-1">
-                          Assigned to: {pov.assignedTo || 'Unassigned'}
+                          Assigned to: {formatAssignedTo(pov.assignedTo)}
                         </p>
                       </div>
                       <Badge variant="destructive" className="ml-2 flex-shrink-0">
@@ -224,7 +232,7 @@ export function TeamDashboard({ user }: TeamDashboardProps) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{pov.title || pov.name}</p>
                       <p className="text-xs text-gray-500">
-                        {pov.assignedTo || 'Team'} • {new Date(pov.updatedAt || pov.createdAt).toLocaleDateString()}
+                        {formatAssignedTo(pov.assignedTo) || 'Team'} • {new Date(pov.updatedAt || pov.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                     <Badge variant={pov.status === 'active' ? 'default' : 'secondary'}>

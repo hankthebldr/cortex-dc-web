@@ -46,6 +46,16 @@ function TRRListContent() {
   // Fetch TRRs using SWR
   const { data: trrs, isLoading, isError, error, mutate } = useTRRs();
 
+  // Helper to format assignedTo (supports both string and array)
+  const formatAssignedTo = (value: any): string => {
+    if (!value) return 'Unassigned';
+    if (Array.isArray(value)) {
+      return value.length > 0 ? value.join(', ') : 'Unassigned';
+    }
+    if (typeof value === 'string') return value;
+    return 'Unassigned';
+  };
+
   // Filter TRRs
   const filteredTRRs = trrs.filter((trr: any) => {
     const matchesSearch =
@@ -313,12 +323,10 @@ function TRRListContent() {
                             </div>
                           )}
 
-                          {trr.assignedTo && (
-                            <div className="flex items-center gap-2">
-                              <Users className="w-4 h-4 text-gray-400" />
-                              <span>Assigned: {trr.assignedTo}</span>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <Users className="w-4 h-4 text-gray-400" />
+                            <span>Assigned: {formatAssignedTo(trr.assignedTo)}</span>
+                          </div>
                         </div>
 
                         {trr.description && (

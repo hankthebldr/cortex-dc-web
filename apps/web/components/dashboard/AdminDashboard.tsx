@@ -39,6 +39,14 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
 
   const isLoading = isLoadingMetrics || isLoadingPOVs || isLoadingTRRs || isLoadingUsers;
 
+  // Helper to format assignedTo (supports both string and array)
+  const formatAssignedTo = (value: any): string => {
+    if (!value) return '';
+    if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : '';
+    if (typeof value === 'string') return value;
+    return '';
+  };
+
   // Calculate platform metrics
   const platformMetrics: PlatformMetrics = metrics?.platform || {
     totalUsers: totalUsers || allUsers.length,
@@ -246,7 +254,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                             </Badge>
                           </div>
                           <p className="text-xs text-gray-500 mt-1">
-                            {item.assignedTo || item.userId || 'Unassigned'} • {new Date(item.updatedAt || item.createdAt).toLocaleString()}
+                            {formatAssignedTo(item.assignedTo) || item.userId || 'Unassigned'} • {new Date(item.updatedAt || item.createdAt).toLocaleString()}
                           </p>
                         </div>
                       </div>

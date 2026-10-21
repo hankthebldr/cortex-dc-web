@@ -29,6 +29,22 @@ export type { BadgeProps } from './components/base/Badge';
 export { Spinner, spinnerVariants } from './components/base/Spinner';
 export type { SpinnerProps } from './components/base/Spinner';
 
+// Form Components
+export {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue
+} from './components/ui/select';
+
+// Feedback Components
+export { Toast, ToastContainer, useToast } from './components/primitives/Toast';
+export type { ToastProps, ToastContainerProps } from './components/primitives/Toast';
+
 // Layout Components
 export { AppShell } from './components/layout/AppShell';
 export { Navigation } from './components/layout/Navigation';
@@ -40,6 +56,7 @@ export { Terminal } from './components/Terminal';
 // Domain-specific components
 export { POVCard } from './components/pov/POVCard';
 export { TRRStatus } from './components/trr/TRRStatus';
+export type { TRRStatusType } from './components/trr/TRRStatus';
 
 // Hooks
 export { useTerminal } from './hooks/useTerminal';

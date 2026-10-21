@@ -15,7 +15,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "lint": "eslint src/",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:fix": "eslint src/ --fix",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist",

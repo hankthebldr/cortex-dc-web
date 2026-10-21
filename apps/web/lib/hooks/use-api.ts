@@ -299,6 +299,34 @@ export function useTRR(id: string | null | undefined) {
 }
 
 /**
+ * Hook for creating TRR
+ */
+export function useCreateTRR() {
+  return useCreateData('trrs');
+}
+
+/**
+ * Hook for updating TRR (full replacement)
+ */
+export function useUpdateTRR() {
+  return useUpdateData('trrs');
+}
+
+/**
+ * Hook for patching TRR (partial update - recommended)
+ */
+export function usePatchTRR() {
+  return usePatchData('trrs');
+}
+
+/**
+ * Hook for deleting TRR
+ */
+export function useDeleteTRR() {
+  return useDeleteData('trrs');
+}
+
+/**
  * Hook for documents
  */
 export function useDocuments(filters?: Record<string, any>) {

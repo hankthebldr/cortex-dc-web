@@ -89,6 +89,9 @@ apps/*/dist/
 apps/*/.next/
 apps/*/out/
 
+# Turbo cache
+.turbo/
+
 # Testing
 coverage/
 .nyc_output/

@@ -1,14 +1,25 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { useTRR } from '@/lib/hooks/use-api';
+import {
+  Badge,
+  Input,
+  Textarea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  useToast,
+  ToastContainer,
+} from '@cortex-dc/ui';
+import { useTRR, usePatchTRR, useDeleteTRR } from '@/lib/hooks/use-api';
 import {
   ArrowLeft,
   Edit,
@@ -45,32 +56,154 @@ function TRRDetailContent() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
+  const { toast, toasts, removeToast } = useToast();
 
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'findings' | 'recommendations' | 'approvals'>('details');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Fetch TRR data using SWR
   const { data: trr, isLoading, isError, error, mutate } = useTRR(id);
+
+  // Patch and delete hooks (using PATCH for partial updates to preserve other fields)
+  const { patch: patchTRR, isPatching } = usePatchTRR();
+  const { deleteItem: deleteTRR, isDeleting } = useDeleteTRR();
+
+  // Form state for editing
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    projectName: '',
+    status: 'draft',
+    priority: 'medium',
+    assignedTo: '',
+    dueDate: '',
+    scope: [] as string[],
+    technicalRequirements: [] as string[],
+  });
+
+  // Helper to convert assignedTo between array and string
+  const assignedToArrayToString = (value: any): string => {
+    if (!value) return '';
+    if (Array.isArray(value)) return value.join(', ');
+    if (typeof value === 'string') return value;
+    return '';
+  };
+
+  const assignedToStringToArray = (value: string): string[] => {
+    if (!value || value.trim().length === 0) return [];
+    return value.split(',').map(v => v.trim()).filter(v => v.length > 0);
+  };
+
+  // Initialize form data when TRR loads or editing starts
+  useEffect(() => {
+    if (trr && isEditing) {
+      setFormData({
+        title: trr.title || trr.name || '',
+        description: trr.description || '',
+        projectName: trr.projectName || '',
+        status: trr.status || 'draft',
+        priority: trr.priority || 'medium',
+        assignedTo: assignedToArrayToString(trr.assignedTo),
+        dueDate: trr.dueDate ? new Date(trr.dueDate).toISOString().split('T')[0] : '',
+        scope: trr.scope || [],
+        technicalRequirements: trr.technicalRequirements || [],
+      });
+    }
+  }, [trr, isEditing]);
 
   const handleEdit = () => {
     setIsEditing(true);
   };
 
   const handleSave = async () => {
-    // TODO: Implement save functionality
-    setIsEditing(false);
-    mutate(); // Revalidate data
+    try {
+      setIsSaving(true);
+
+      // Validate required fields
+      if (!formData.title || formData.title.trim().length === 0) {
+        toast.error('Title is required', 'Validation Error');
+        return;
+      }
+
+      if (formData.title.length > 200) {
+        toast.error('Title must be 200 characters or less', 'Validation Error');
+        return;
+      }
+
+      // Prepare update data (partial update to preserve fields like findings/recommendations/approvals)
+      const updates = {
+        title: formData.title.trim(),
+        description: formData.description?.trim() || '',
+        projectName: formData.projectName?.trim() || '',
+        status: formData.status,
+        priority: formData.priority,
+        assignedTo: assignedToStringToArray(formData.assignedTo),
+        dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
+        scope: formData.scope,
+        technicalRequirements: formData.technicalRequirements,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Use PATCH to only update specified fields, preserving others
+      await patchTRR({ id, updates });
+
+      // Revalidate and exit edit mode
+      await mutate();
+      setIsEditing(false);
+
+      toast.success('TRR updated successfully', 'Success');
+    } catch (error: any) {
+      console.error('Error updating TRR:', error);
+      toast.error(error?.message || 'Failed to update TRR', 'Error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
     setIsEditing(false);
+    // Reset form data
+    if (trr) {
+      setFormData({
+        title: trr.title || trr.name || '',
+        description: trr.description || '',
+        projectName: trr.projectName || '',
+        status: trr.status || 'draft',
+        priority: trr.priority || 'medium',
+        assignedTo: assignedToArrayToString(trr.assignedTo),
+        dueDate: trr.dueDate ? new Date(trr.dueDate).toISOString().split('T')[0] : '',
+        scope: trr.scope || [],
+        technicalRequirements: trr.technicalRequirements || [],
+      });
+    }
   };
 
   const handleDelete = async () => {
-    if (confirm('Are you sure you want to delete this TRR?')) {
-      // TODO: Implement delete functionality
+    const confirmDelete = window.confirm(
+      'Are you sure you want to delete this TRR? This action cannot be undone.'
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      await deleteTRR(id);
+
+      toast.success('TRR deleted successfully', 'Success');
+
+      // Navigate back to TRR list
       router.push('/trr');
+    } catch (error: any) {
+      console.error('Error deleting TRR:', error);
+      toast.error(error?.message || 'Failed to delete TRR', 'Error');
     }
+  };
+
+  const handleFormChange = (field: string, value: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
   const getStatusColor = (status: string) => {
@@ -147,27 +280,77 @@ function TRRDetailContent() {
               Back
             </Button>
           </Link>
-          <div>
-            <div className="flex items-center gap-3 mb-2 flex-wrap">
-              <h1 className="text-3xl font-bold text-gray-900">
-                {trr.name || trr.title || 'Untitled TRR'}
-              </h1>
-              <Badge className={`${getStatusColor(trr.status)} border`}>
-                {trr.status}
-              </Badge>
-              {trr.priority && (
-                <Badge className={getPriorityColor(trr.priority)}>
-                  {trr.priority} priority
-                </Badge>
-              )}
-              {trr.dueDate && isOverdue(trr.dueDate) && trr.status !== 'completed' && (
-                <Badge className="bg-red-100 text-red-800 border-red-300">
-                  <AlertCircle className="w-3 h-3 mr-1" />
-                  Overdue
-                </Badge>
-              )}
-            </div>
-            <p className="text-gray-600">ID: {trr.id}</p>
+          <div className="flex-1">
+            {isEditing ? (
+              <div className="space-y-3">
+                <Input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => handleFormChange('title', e.target.value)}
+                  placeholder="Enter TRR title"
+                  className="text-2xl font-bold"
+                  maxLength={200}
+                />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Select
+                    value={formData.status}
+                    onValueChange={(value) => handleFormChange('status', value)}
+                  >
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="in_review">In Review</SelectItem>
+                      <SelectItem value="validated">Validated</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={formData.priority}
+                    onValueChange={(value) => handleFormChange('priority', value)}
+                  >
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-3 mb-2 flex-wrap">
+                  <h1 className="text-3xl font-bold text-gray-900">
+                    {trr.name || trr.title || 'Untitled TRR'}
+                  </h1>
+                  <Badge className={`${getStatusColor(trr.status)} border`}>
+                    {trr.status}
+                  </Badge>
+                  {trr.priority && (
+                    <Badge className={getPriorityColor(trr.priority)}>
+                      {trr.priority} priority
+                    </Badge>
+                  )}
+                  {trr.dueDate && isOverdue(trr.dueDate) && trr.status !== 'completed' && (
+                    <Badge className="bg-red-100 text-red-800 border-red-300">
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                      Overdue
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-gray-600">ID: {trr.id}</p>
+              </>
+            )}
           </div>
         </div>
 
@@ -186,17 +369,26 @@ function TRRDetailContent() {
                 <Edit className="w-4 h-4 mr-2" />
                 Edit
               </Button>
-              <Button variant="outline" onClick={handleDelete}>
-                <Trash2 className="w-4 h-4 mr-2 text-red-600" />
+              <Button variant="outline" onClick={handleDelete} disabled={isDeleting}>
+                {isDeleting ? (
+                  <Loader2 className="w-4 h-4 mr-2 text-red-600 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4 mr-2 text-red-600" />
+                )}
+                {isDeleting ? 'Deleting...' : ''}
               </Button>
             </>
           ) : (
             <>
-              <Button onClick={handleSave}>
-                <Save className="w-4 h-4 mr-2" />
-                Save
+              <Button onClick={handleSave} disabled={isSaving || isPatching}>
+                {isSaving || isPatching ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {isSaving || isPatching ? 'Saving...' : 'Save'}
               </Button>
-              <Button variant="outline" onClick={handleCancel}>
+              <Button variant="outline" onClick={handleCancel} disabled={isSaving || isPatching}>
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
@@ -237,29 +429,57 @@ function TRRDetailContent() {
 
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            {isEditing ? (
               <div>
-                <p className="text-sm text-gray-600">Due Date</p>
-                <p className="text-lg font-semibold text-gray-900 mt-1">
-                  {trr.dueDate ? new Date(trr.dueDate).toLocaleDateString() : 'Not set'}
-                </p>
+                <p className="text-sm text-gray-600 mb-2">Due Date</p>
+                <Input
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={(e) => handleFormChange('dueDate', e.target.value)}
+                  className="w-full"
+                />
               </div>
-              <Clock className="w-8 h-8 text-gray-400" />
-            </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Due Date</p>
+                  <p className="text-lg font-semibold text-gray-900 mt-1">
+                    {trr.dueDate ? new Date(trr.dueDate).toLocaleDateString() : 'Not set'}
+                  </p>
+                </div>
+                <Clock className="w-8 h-8 text-gray-400" />
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            {isEditing ? (
               <div>
-                <p className="text-sm text-gray-600">Assigned To</p>
-                <p className="text-lg font-semibold text-gray-900 mt-1 truncate">
-                  {trr.assignedTo || 'Unassigned'}
+                <p className="text-sm text-gray-600 mb-2">Assigned To</p>
+                <Input
+                  type="text"
+                  value={formData.assignedTo}
+                  onChange={(e) => handleFormChange('assignedTo', e.target.value)}
+                  placeholder="Enter names separated by commas"
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Enter multiple assignees separated by commas
                 </p>
               </div>
-              <Users className="w-8 h-8 text-gray-400" />
-            </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600">Assigned To</p>
+                  <p className="text-lg font-semibold text-gray-900 mt-1">
+                    {assignedToArrayToString(trr.assignedTo) || 'Unassigned'}
+                  </p>
+                </div>
+                <Users className="w-8 h-8 text-gray-400 flex-shrink-0" />
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -289,35 +509,60 @@ function TRRDetailContent() {
           {activeTab === 'details' && (
             <div className="space-y-6">
               {/* Project Information */}
-              {trr.projectName && (
+              {(isEditing || trr.projectName) && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-3">Project Information</h3>
                   <Card className="bg-gray-50">
                     <CardContent className="pt-6">
-                      <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {isEditing ? (
                         <div>
-                          <dt className="text-sm font-medium text-gray-600">Project Name</dt>
-                          <dd className="text-base text-gray-900 mt-1">{trr.projectName}</dd>
+                          <label className="text-sm font-medium text-gray-600 block mb-2">
+                            Project Name
+                          </label>
+                          <Input
+                            type="text"
+                            value={formData.projectName}
+                            onChange={(e) => handleFormChange('projectName', e.target.value)}
+                            placeholder="Enter project name"
+                            className="w-full"
+                          />
                         </div>
-                        {trr.projectId && (
+                      ) : (
+                        <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <dt className="text-sm font-medium text-gray-600">Project ID</dt>
-                            <dd className="text-base text-gray-900 mt-1">{trr.projectId}</dd>
+                            <dt className="text-sm font-medium text-gray-600">Project Name</dt>
+                            <dd className="text-base text-gray-900 mt-1">{trr.projectName}</dd>
                           </div>
-                        )}
-                      </dl>
+                          {trr.projectId && (
+                            <div>
+                              <dt className="text-sm font-medium text-gray-600">Project ID</dt>
+                              <dd className="text-base text-gray-900 mt-1">{trr.projectId}</dd>
+                            </div>
+                          )}
+                        </dl>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
               )}
 
               {/* Description */}
-              {trr.description && (
+              {(isEditing || trr.description) && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-3">Description</h3>
                   <Card className="bg-gray-50">
                     <CardContent className="pt-6">
-                      <p className="text-gray-700 whitespace-pre-wrap">{trr.description}</p>
+                      {isEditing ? (
+                        <Textarea
+                          value={formData.description}
+                          onChange={(e) => handleFormChange('description', e.target.value)}
+                          placeholder="Enter description"
+                          className="w-full min-h-[120px]"
+                          maxLength={2000}
+                        />
+                      ) : (
+                        <p className="text-gray-700 whitespace-pre-wrap">{trr.description}</p>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
@@ -527,6 +772,13 @@ function TRRDetailContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* Toast Container */}
+      <ToastContainer
+        toasts={toasts}
+        position="top-right"
+        onRemove={removeToast}
+      />
     </div>
   );
 }

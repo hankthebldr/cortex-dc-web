@@ -1,0 +1,26 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module"
+  },
+  "env": {
+    "es2022": true,
+    "node": true,
+    "browser": true
+  },
+  "globals": {
+    "NodeJS": "readonly",
+    "RequestInit": "readonly"
+  },
+  "extends": [
+    "eslint:recommended"
+  ],
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-console": "off",
+    "no-undef": "warn"
+  },
+  "ignorePatterns": ["dist/", "node_modules/", "*.d.ts"]
+}

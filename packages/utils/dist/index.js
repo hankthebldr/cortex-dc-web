@@ -63912,7 +63912,7 @@ var init_federated_data_service = __esm({
       }
       invalidateCache(collection2) {
         if (collection2) {
-          for (const key of this.queryCache.keys()) {
+          for (const key of Array.from(this.queryCache.keys())) {
             if (key.startsWith(collection2 + ":")) {
               this.queryCache.delete(key);
             }
@@ -63932,7 +63932,7 @@ var init_federated_data_service = __esm({
        */
       getCacheStats() {
         let oldestTimestamp = Date.now();
-        for (const entry of this.queryCache.values()) {
+        for (const entry of Array.from(this.queryCache.values())) {
           if (entry.timestamp < oldestTimestamp) {
             oldestTimestamp = entry.timestamp;
           }
