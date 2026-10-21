@@ -20,9 +20,16 @@ interface VisualizationWorkbenchProps {
   scenarios: VisualizationScenario[];
 }
 
-export function VisualizationWorkbench({ modules, scenarios }: VisualizationWorkbenchProps) {
+export function VisualizationWorkbench({
+  modules,
+  scenarios,
+}: VisualizationWorkbenchProps) {
   return (
-    <section className="panel visualization" aria-labelledby="visualization-title">
+    <section
+      id="detection"
+      className="panel visualization"
+      aria-labelledby="visualization-title"
+    >
       <header className="panel__header">
         <h2 id="visualization-title">
           <span>DX</span>

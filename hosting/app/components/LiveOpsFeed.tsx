@@ -10,7 +10,7 @@ interface LiveOpsFeedProps {
 
 export function LiveOpsFeed({ cards }: LiveOpsFeedProps) {
   return (
-    <section>
+    <section id="intel">
       <h3 className="section-heading">Live Ops Feed</h3>
       <p className="section-subtitle">
         Surface the latest signals, automation updates, and responder milestones to keep the entire crew aligned.

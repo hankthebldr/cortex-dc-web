@@ -2,6 +2,8 @@
   "name": "@cortex-dc/web",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
+  "main": "ssr.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -39,6 +41,9 @@
     "cmdk": "^0.2.0",
     "date-fns": "^2.30.0",
     "firebase": "^12.4.0",
+    "firebase-admin": "^13.6.0",
+    "firebase-frameworks": "^0.11.8",
+    "firebase-functions": "^6.0.1",
     "framer-motion": "^11.0.0",
     "gray-matter": "^4.0.3",
     "jspdf": "^2.5.1",

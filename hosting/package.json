@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "playwright:smoke": "playwright test --config=playwright.config.ts --grep=@smoke",
     "bundle:size": "node scripts/check-bundle-size.mjs",
     "lighthouse": "lhci autorun --config=./lighthouserc.json"

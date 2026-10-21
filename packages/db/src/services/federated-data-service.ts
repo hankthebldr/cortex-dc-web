@@ -17,7 +17,7 @@ import { getDatabase } from '../adapters/database.factory';
 import {
   AccessContext,
   accessControlService,
-  AccessControlService
+  AccessControlService,
 } from './access-control-service';
 import { UserRole } from '../types/auth';
 
@@ -103,7 +103,7 @@ export class FederatedDataService {
       data,
       total: data.length,
       hasMore: options.limit ? data.length === options.limit : false,
-      scope
+      scope,
     };
 
     // Cache the result
@@ -115,11 +115,7 @@ export class FederatedDataService {
   /**
    * Get single item with access check
    */
-  async getOne<T>(
-    collection: string,
-    id: string,
-    context: AccessContext
-  ): Promise<T | null> {
+  async getOne<T>(collection: string, id: string, context: AccessContext): Promise<T | null> {
     const db = getDatabase();
     const item = await db.findOne<T>(collection, id);
 
@@ -128,12 +124,7 @@ export class FederatedDataService {
     }
 
     // Check access
-    const access = await this.accessControl.canAccess(
-      context,
-      collection,
-      id,
-      'read'
-    );
+    const access = await this.accessControl.canAccess(context, collection, id, 'read');
 
     if (!access.granted) {
       // Log denied access
@@ -144,7 +135,7 @@ export class FederatedDataService {
         resourceId: id,
         accessGranted: false,
         reason: access.reason,
-        metadata: { userRole: context.role }
+        metadata: { userRole: context.role },
       });
       return null;
     }
@@ -156,7 +147,7 @@ export class FederatedDataService {
       resource: collection,
       resourceId: id,
       accessGranted: true,
-      metadata: { userRole: context.role }
+      metadata: { userRole: context.role },
     });
 
     return item;
@@ -184,7 +175,7 @@ export class FederatedDataService {
         createdBy: context.userId,
         groupIds: options.groupIds || context.groups || [],
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
 
       const createdItem = await db.create<T>(collection, itemData);
@@ -197,7 +188,7 @@ export class FederatedDataService {
         resource: collection,
         resourceId: id,
         accessGranted: true,
-        metadata: { userRole: context.role }
+        metadata: { userRole: context.role },
       });
 
       // Invalidate cache
@@ -207,7 +198,7 @@ export class FederatedDataService {
     } catch (error: any) {
       return {
         success: false,
-        error: error.message || 'Failed to create item'
+        error: error.message || 'Failed to create item',
       };
     }
   }
@@ -222,12 +213,7 @@ export class FederatedDataService {
     context: AccessContext
   ): Promise<{ success: boolean; error?: string }> {
     // Check write access
-    const access = await this.accessControl.canAccess(
-      context,
-      collection,
-      id,
-      'write'
-    );
+    const access = await this.accessControl.canAccess(context, collection, id, 'write');
 
     if (!access.granted) {
       await this.accessControl.logAccess({
@@ -237,12 +223,12 @@ export class FederatedDataService {
         resourceId: id,
         accessGranted: false,
         reason: access.reason,
-        metadata: { userRole: context.role }
+        metadata: { userRole: context.role },
       });
 
       return {
         success: false,
-        error: 'You do not have permission to update this item'
+        error: 'You do not have permission to update this item',
       };
     }
 
@@ -252,7 +238,7 @@ export class FederatedDataService {
       await db.update(collection, id, {
         ...updates,
         updatedAt: new Date(),
-        updatedBy: context.userId
+        updatedBy: context.userId,
       });
 
       // Log update
@@ -262,7 +248,7 @@ export class FederatedDataService {
         resource: collection,
         resourceId: id,
         accessGranted: true,
-        metadata: { userRole: context.role }
+        metadata: { userRole: context.role },
       });
 
       // Invalidate cache
@@ -272,7 +258,7 @@ export class FederatedDataService {
     } catch (error: any) {
       return {
         success: false,
-        error: error.message || 'Failed to update item'
+        error: error.message || 'Failed to update item',
       };
     }
   }
@@ -286,12 +272,7 @@ export class FederatedDataService {
     context: AccessContext
   ): Promise<{ success: boolean; error?: string }> {
     // Check delete access
-    const access = await this.accessControl.canAccess(
-      context,
-      collection,
-      id,
-      'delete'
-    );
+    const access = await this.accessControl.canAccess(context, collection, id, 'delete');
 
     if (!access.granted) {
       await this.accessControl.logAccess({
@@ -301,12 +282,12 @@ export class FederatedDataService {
         resourceId: id,
         accessGranted: false,
         reason: access.reason,
-        metadata: { userRole: context.role }
+        metadata: { userRole: context.role },
       });
 
       return {
         success: false,
-        error: 'You do not have permission to delete this item'
+        error: 'You do not have permission to delete this item',
       };
     }
 
@@ -322,7 +303,7 @@ export class FederatedDataService {
         resource: collection,
         resourceId: id,
         accessGranted: true,
-        metadata: { userRole: context.role }
+        metadata: { userRole: context.role },
       });
 
       // Invalidate cache
@@ -332,7 +313,7 @@ export class FederatedDataService {
     } catch (error: any) {
       return {
         success: false,
-        error: error.message || 'Failed to delete item'
+        error: error.message || 'Failed to delete item',
       };
     }
   }
@@ -348,7 +329,7 @@ export class FederatedDataService {
     const results = {
       success: 0,
       failed: 0,
-      ids: [] as string[]
+      ids: [] as string[],
     };
 
     for (const item of items) {
@@ -375,15 +356,16 @@ export class FederatedDataService {
 
     for (const collection of collections) {
       const userScope = await this.queryUserScope(collection, context, {});
-      const groupScope = context.role === UserRole.MANAGER
-        ? await this.queryGroupScope(collection, context, { includeGroupData: true })
-        : [];
+      const groupScope =
+        context.role === UserRole.MANAGER
+          ? await this.queryGroupScope(collection, context, { includeGroupData: true })
+          : [];
 
       stats[collection] = {
         userDataCount: userScope.length,
         groupDataCount: groupScope.length - userScope.length,
         totalAccessible: groupScope.length || userScope.length,
-        cacheHitRate: 0 // TODO: implement cache metrics
+        cacheHitRate: 0, // TODO: implement cache metrics
       };
     }
 
@@ -408,7 +390,7 @@ export class FederatedDataService {
         filters: [
           ...(options.filters || []),
           // This would need to be adapted based on your search implementation
-        ]
+        ],
       });
 
       results.set(collection, collectionResults.data);
@@ -424,17 +406,14 @@ export class FederatedDataService {
   /**
    * Query global scope (admin only)
    */
-  private async queryGlobal<T>(
-    collection: string,
-    options: QueryOptions
-  ): Promise<T[]> {
+  private async queryGlobal<T>(collection: string, options: QueryOptions): Promise<T[]> {
     const db = getDatabase();
 
     return await db.findMany<T>(collection, {
       filters: options.filters,
       orderBy: options.orderBy,
       orderDirection: options.orderDirection,
-      limit: options.limit
+      limit: options.limit,
     });
   }
 
@@ -446,16 +425,12 @@ export class FederatedDataService {
     context: AccessContext,
     options: QueryOptions
   ): Promise<T[]> {
-    return await this.accessControl.getAccessibleData<T>(
-      collection,
-      context,
-      {
-        filters: options.filters,
-        orderBy: options.orderBy,
-        limit: options.limit,
-        includeGroupData: true
-      }
-    );
+    return await this.accessControl.getAccessibleData<T>(collection, context, {
+      filters: options.filters,
+      orderBy: options.orderBy,
+      limit: options.limit,
+      includeGroupData: true,
+    });
   }
 
   /**
@@ -474,12 +449,12 @@ export class FederatedDataService {
         {
           field: 'ownerId',
           operator: '==',
-          value: context.userId
-        }
+          value: context.userId,
+        },
       ],
       orderBy: options.orderBy,
       orderDirection: options.orderDirection,
-      limit: options.limit
+      limit: options.limit,
     });
   }
 
@@ -487,11 +462,7 @@ export class FederatedDataService {
   // CACHE MANAGEMENT
   // ============================================================================
 
-  private getCacheKey(
-    collection: string,
-    context: AccessContext,
-    options: QueryOptions
-  ): string {
+  private getCacheKey(collection: string, context: AccessContext, options: QueryOptions): string {
     return `${collection}:${context.userId}:${context.role}:${JSON.stringify(options)}`;
   }
 
@@ -511,7 +482,7 @@ export class FederatedDataService {
   private setCache(key: string, data: any): void {
     this.queryCache.set(key, {
       data,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     // Limit cache size
@@ -563,7 +534,7 @@ export class FederatedDataService {
     return {
       size: this.queryCache.size,
       ttl: this.cacheTTL,
-      oldestEntry: oldestTimestamp
+      oldestEntry: oldestTimestamp,
     };
   }
 }
